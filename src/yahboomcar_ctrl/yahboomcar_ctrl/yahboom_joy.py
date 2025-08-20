@@ -89,7 +89,7 @@ class JoyTeleop(Node):
         if joy_data.buttons[11] == 1:
             self.Buzzer_active=not self.Buzzer_active
             # print "self.Buzzer_active: ", self.Buzzer_active
-            for i in range(3): self.pub_Buzzer.publish(self.Buzzer_active)
+            for i in range(3): self.pub_Buzzer.publish(Bool(self.Buzzer_active))
         # linear Gear control
         if joy_data.buttons[13] == 1:
             if self.linear_Gear == 1.0: self.linear_Gear = 1.0 / 3
@@ -155,7 +155,7 @@ class JoyTeleop(Node):
         if joy_data.buttons[7] == 1:
             self.Buzzer_active=not self.Buzzer_active
             # print "self.Buzzer_active: ", self.Buzzer_active
-            self.pub_Buzzer.publish(self.Buzzer_active)
+            self.pub_Buzzer.publish(Bool(self.Buzzer_active))
         # 档位控制 Gear control
         if joy_data.buttons[9] == 1:
             if self.linear_Gear == 1.0: self.linear_Gear = 1.0 / 3
