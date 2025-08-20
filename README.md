@@ -186,6 +186,28 @@ sudo usermod -a -G dialout $USER
 - The driver will fail to connect to `/dev/myserial` when no robot is connected
 - This is expected behavior and indicates the software is working correctly
 
+## Robot Control (Teleoperation)
+
+### Joystick Control
+Launch the joystick teleop system (requires physical joystick):
+```bash
+# Launch both joy_node and yahboom_joy teleop
+ros2 launch yahboomcar_ctrl yahboom_joy.launch.py
+
+# Or run individually
+ros2 run joy joy_node
+ros2 run yahboomcar_ctrl yahboom_joy
+```
+
+### Keyboard Control
+**Important:** Keyboard teleop must be run directly from terminal (cannot use launch files):
+```bash
+# Run keyboard teleop directly
+ros2 run yahboomcar_ctrl yahboom_keyboard
+```
+
+**Note:** Due to ROS2 architectural differences, keyboard teleop requires direct terminal stdin access and cannot be launched through launch files. This is a known limitation in ROS2 for interactive terminal-based nodes.
+
 ## Contributing
 
 This project follows the ROS2 coding standards and conventions. Key migration principles:
