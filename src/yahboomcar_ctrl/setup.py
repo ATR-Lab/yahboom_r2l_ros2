@@ -10,6 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', ['launch/yahboom_joy.launch.py',
+                                               'launch/yahboom_keyboard.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,6 +22,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'yahboom_joy = yahboomcar_ctrl.yahboom_joy:main',
+            'yahboom_keyboard = yahboomcar_ctrl.yahboom_keyboard:main',
         ],
     },
 )
