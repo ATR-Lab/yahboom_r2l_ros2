@@ -1,108 +1,113 @@
 #!/usr/bin/env python3
-"""
-ROS2 Launch file for Yahboom R2L Robot Bringup
-Equivalent to the ROS1 bringup.launch file
 
-Includes:
-- Robot description (URDF)
-- Hardware driver (mcnamu_driver_ros2.py) 
-- IMU filtering (imu_filter_madgwick)
-- EKF localization (robot_localization)
-- Joint/Robot state publishers
-"""
-
+import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction
-from launch.substitutions import LaunchConfiguration, Command, PathJoinSubstitution, PythonExpression
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import LaunchConfiguration, Command, PathJoinSubstitution, EnvironmentVariable, EqualsSubstitution, AndSubstitution, NotSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-
+from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    # Declare launch arguments
+    # Launch arguments
     use_gui_arg = DeclareLaunchArgument(
         'use_gui',
         default_value='false',
-        description='Flag to enable joint_state_publisher_gui'
+        description='Use joint_state_publisher_gui'
     )
     
     use_rviz_arg = DeclareLaunchArgument(
         'use_rviz',
-        default_value='false', 
-        description='Flag to start RViz visualization'
+        default_value='false',
+        description='Start RViz'
     )
     
     use_ekf_arg = DeclareLaunchArgument(
         'use_ekf',
         default_value='true',
-        description='Flag to enable EKF localization'
+        description='Use EKF localization'
     )
     
     nav_use_rotvel_arg = DeclareLaunchArgument(
         'nav_use_rotvel',
         default_value='false',
-        description='Use rotational velocity for navigation'
+        description='Navigation use rotational velocity'
     )
     
     robot_type_arg = DeclareLaunchArgument(
         'robot_type',
-        default_value='R2L',
-        description='Robot type [X3, R2, R2L]'
+        default_value=EnvironmentVariable('ROBOT_TYPE', default_value='R2L'),
+        description='Robot type from environment variable'
     )
-    
+
     # Get launch configurations
     use_gui = LaunchConfiguration('use_gui')
-    use_rviz = LaunchConfiguration('use_rviz')
+    use_rviz = LaunchConfiguration('use_rviz') 
     use_ekf = LaunchConfiguration('use_ekf')
     nav_use_rotvel = LaunchConfiguration('nav_use_rotvel')
     robot_type = LaunchConfiguration('robot_type')
+
+    # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2L'))
+    robot_type_is_r2l = EqualsSubstitution(robot_type, 'R2L')
+
+    # Get package directories
+    yahboomcar_description_dir = get_package_share_directory('yahboomcar_description')
+    yahboomcar_bringup_dir = get_package_share_directory('yahboomcar_bringup')
     
-    # Robot description setup
-    urdf_file = PathJoinSubstitution([
-        FindPackageShare('yahboomcar_description'),
-        'urdf',
-        'yahboomcar_R2.urdf.xacro'  # Using R2 URDF for R2L robot
-    ])
-    
-    robot_description = Command(['xacro ', urdf_file])
-    
-    # Robot state publisher (common to both EKF and non-EKF modes)
+    # Robot description (only for R2L robot type)
+    xacro_file = os.path.join(yahboomcar_description_dir, 'urdf', 'yahboomcar_R2.urdf.xacro')
+    robot_description = ParameterValue(
+        Command(['xacro ', xacro_file]),
+        value_type=str
+    )
+
+    # Robot state publisher (only for R2L robot type)
     robot_state_publisher_node = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        parameters=[{'robot_description': ParameterValue(robot_description, value_type=str)}],
-        output='screen'
+        name='robot_state_publisher',
+        output='screen',
+        condition=IfCondition(robot_type_is_r2l),
+        parameters=[{
+            'robot_description': robot_description,
+            'use_sim_time': False
+        }]
     )
-    
-    # Joint state publisher GUI (when GUI is enabled)
+
+    # Joint state publisher (GUI version) - only for R2L robot type
     joint_state_publisher_gui_node = Node(
         package='joint_state_publisher_gui',
         executable='joint_state_publisher_gui',
-        condition=IfCondition(use_gui),
-        output='screen'
+        name='joint_state_publisher',
+        output='screen',
+        condition=IfCondition(AndSubstitution(use_gui, robot_type_is_r2l))
     )
-    
-    # Joint state publisher (when GUI is disabled)  
+
+    # Joint state publisher (non-GUI version) - only for R2L robot type
     joint_state_publisher_node = Node(
         package='joint_state_publisher',
         executable='joint_state_publisher',
-        condition=UnlessCondition(use_gui),
-        output='screen'
+        name='joint_state_publisher',
+        output='screen',
+        condition=IfCondition(AndSubstitution(
+            NotSubstitution(use_gui),  # NOT use_gui
+            robot_type_is_r2l
+        ))
     )
-    
-    # Hardware driver node (main driver)
-    hardware_driver_node = Node(
+
+    # Hardware driver node (only for R2L robot type)
+    mcnamu_driver_node = Node(
         package='yahboomcar_bringup',
         executable='mcnamu_driver.py',
-        name='yahboomcar_driver',
+        name='driver_node',
         output='screen',
+        condition=IfCondition(robot_type_is_r2l),
         parameters=[{
             'car_type': robot_type,
             'xlinear_speed_limit': 1.0,
-            'ylinear_speed_limit': 1.0, 
+            'ylinear_speed_limit': 1.0,
             'angular_speed_limit': 5.0,
             'nav_use_rotvel': nav_use_rotvel,
             'imu_link': 'imu_link'
@@ -113,11 +118,53 @@ def generate_launch_description():
             ('/pub_mag', '/mag/mag_raw')
         ]
     )
-    
-    # IMU filter node (Madgwick filter)
+
+    # Base node (odometry publisher) - EKF mode
+    base_node_ekf = Node(
+        package='yahboomcar_bringup',
+        executable='base_node',
+        name='odometry_publisher',
+        output='screen',
+        condition=IfCondition(use_ekf),
+        parameters=[{
+            'odom_frame': 'odom',
+            'base_footprint_frame': 'base_footprint',
+            'linear_scale_x': 1.0,
+            'linear_scale_y': 1.0,
+            'wheelbase': 0.25,
+            'pub_odom_tf': False
+        }],
+        remappings=[
+            ('/sub_vel', '/vel_raw'),
+            ('/pub_odom', '/odom_raw')
+        ]
+    )
+
+    # Base node (odometry publisher) - non-EKF mode
+    base_node_no_ekf = Node(
+        package='yahboomcar_bringup',
+        executable='base_node',
+        name='odometry_publisher',
+        output='screen',
+        condition=UnlessCondition(use_ekf),
+        parameters=[{
+            'odom_frame': 'odom',
+            'base_footprint_frame': 'base_footprint',
+            'linear_scale_x': 1.0,
+            'linear_scale_y': 1.0,
+            'wheelbase': 0.25,
+            'pub_odom_tf': True
+        }],
+        remappings=[
+            ('/sub_vel', '/vel_raw'),
+            ('/pub_odom', '/odom')
+        ]
+    )
+
+    # IMU filter node
     imu_filter_node = Node(
         package='imu_filter_madgwick',
-        executable='imu_filter_node',
+        executable='imu_filter_madgwick_node',
         name='imu_filter_madgwick',
         output='screen',
         condition=IfCondition(use_ekf),
@@ -131,86 +178,74 @@ def generate_launch_description():
             'angular_scale': 1.05
         }],
         remappings=[
-            ('imu/data_raw', '/imu/imu_raw'),
-            ('imu/mag', '/mag/mag_raw'), 
-            ('imu/data', '/imu/imu_data'),
-            ('imu/mag_out', '/mag/mag_field')
+            ('/sub_imu', '/imu/imu_raw'),
+            ('/sub_mag', '/mag/mag_raw'),
+            ('/pub_imu', '/imu/imu_data'),
+            ('/pub_mag', '/mag/mag_field')
         ]
     )
+
+    # EKF localization node
+    robot_localization_file_path = os.path.join(yahboomcar_bringup_dir, 'param', 'robot_localization.yaml')
     
-    # Robot localization EKF node
-    robot_localization_file = PathJoinSubstitution([
-        FindPackageShare('yahboomcar_bringup'),
-        'param',
-        'robot_localization.yaml'
-    ])
-    
-    ekf_localization_node = Node(
+    ekf_node = Node(
         package='robot_localization',
         executable='ekf_node',
         name='ekf_localization',
         output='screen',
         condition=IfCondition(use_ekf),
-        parameters=[robot_localization_file, {
-            'odom_frame': 'odom',
-            'world_frame': 'odom',
-            'base_link_frame': 'base_footprint'
+        parameters=[robot_localization_file_path, {
+            'odom_frame': '/odom',
+            'world_frame': '/odom',
+            'base_link_frame': '/base_footprint'
         }],
         remappings=[
             ('odometry/filtered', 'odom'),
-            ('imu0', '/imu/imu_data'),
-            ('odom0', 'odom_raw')
+            ('/imu0', '/imu/imu_data'),
+            ('/odom0', 'odom_raw')
         ]
     )
-    
-    # RViz node (optional)
-    rviz_config_file = PathJoinSubstitution([
-        FindPackageShare('yahboomcar_description'),
-        'rviz', 
-        'yahboomcar_r2l.rviz'
-    ])
-    
+
+    # Include joystick control launch
+    yahboomcar_ctrl_dir = get_package_share_directory('yahboomcar_ctrl')
+    joy_launch = IncludeLaunchDescription(
+        os.path.join(yahboomcar_ctrl_dir, 'launch', 'yahboom_joy.launch.py')
+    )
+
+    # RViz node
+    rviz_config_file = os.path.join(yahboomcar_bringup_dir, 'rviz', 'odom.rviz')
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
-        name='rviz2',
+        name='odom_rviz',
+        output='screen',
         arguments=['-d', rviz_config_file],
-        condition=IfCondition(use_rviz),
-        output='screen'
-    )
-    
-    # Include joystick control launch (from yahboomcar_ctrl package)
-    joy_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('yahboomcar_ctrl'),
-                'launch',
-                'yahboom_joy.launch.py'
-            ])
-        ])
+        condition=IfCondition(use_rviz)
     )
 
     return LaunchDescription([
-        # Launch arguments
+        # Arguments
         use_gui_arg,
         use_rviz_arg,
         use_ekf_arg,
         nav_use_rotvel_arg,
         robot_type_arg,
-        
+
         # Core nodes
         robot_state_publisher_node,
         joint_state_publisher_gui_node,
         joint_state_publisher_node,
-        hardware_driver_node,
         
-        # Sensor processing (EKF mode)
+        # Hardware and odometry
+        mcnamu_driver_node,
+        base_node_ekf,
+        base_node_no_ekf,
+        
+        # Sensor processing
         imu_filter_node,
-        ekf_localization_node,
+        ekf_node,
         
-        # Visualization
-        rviz_node,
-        
-        # Control interface
-        joy_launch
+        # Control and visualization
+        joy_launch,
+        rviz_node
     ])
