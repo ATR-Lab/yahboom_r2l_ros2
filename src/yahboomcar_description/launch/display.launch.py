@@ -11,6 +11,7 @@ from launch.substitutions import LaunchConfiguration, Command, FindPackageShare,
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -52,7 +53,7 @@ def generate_launch_description():
     robot_state_publisher_node = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        parameters=[{'robot_description': robot_description}],
+        parameters=[{'robot_description': ParameterValue(robot_description, value_type=str)}],
         output='screen'
     )
     
