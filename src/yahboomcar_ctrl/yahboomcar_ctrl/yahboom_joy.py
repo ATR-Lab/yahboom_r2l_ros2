@@ -81,7 +81,7 @@ class JoyTeleop(Node):
         # RGBLight
         if joy_data.buttons[7] == 1:
             if self.RGBLight_index < 6:
-                for i in range(3): self.pub_RGBLight.publish(self.RGBLight_index)
+                for i in range(3): self.pub_RGBLight.publish(Int32(data=self.RGBLight_index))
                 # print ("pub RGBLight success")
             else: self.RGBLight_index = 0
             self.RGBLight_index += 1
@@ -89,7 +89,7 @@ class JoyTeleop(Node):
         if joy_data.buttons[11] == 1:
             self.Buzzer_active=not self.Buzzer_active
             # print "self.Buzzer_active: ", self.Buzzer_active
-            for i in range(3): self.pub_Buzzer.publish(Bool(self.Buzzer_active))
+            for i in range(3): self.pub_Buzzer.publish(Bool(data=self.Buzzer_active))
         # linear Gear control
         if joy_data.buttons[13] == 1:
             if self.linear_Gear == 1.0: self.linear_Gear = 1.0 / 3
@@ -148,14 +148,14 @@ class JoyTeleop(Node):
         if joy_data.axes[5] == -1: self.cancel_nav()
         if joy_data.buttons[5] == 1:
             if self.RGBLight_index < 6:
-                self.pub_RGBLight.publish(self.RGBLight_index)
+                self.pub_RGBLight.publish(Int32(data=self.RGBLight_index))
                 # print ("pub RGBLight success")
             else: self.RGBLight_index = 0
             self.RGBLight_index += 1
         if joy_data.buttons[7] == 1:
             self.Buzzer_active=not self.Buzzer_active
             # print "self.Buzzer_active: ", self.Buzzer_active
-            self.pub_Buzzer.publish(Bool(self.Buzzer_active))
+            self.pub_Buzzer.publish(Bool(data=self.Buzzer_active))
         # 档位控制 Gear control
         if joy_data.buttons[9] == 1:
             if self.linear_Gear == 1.0: self.linear_Gear = 1.0 / 3
@@ -192,7 +192,7 @@ class JoyTeleop(Node):
         if now_time - self.cancel_time > 1:
             self.Joy_active = not self.Joy_active
             for i in range(3):
-                self.pub_JoyState.publish(Bool(self.Joy_active))
+                self.pub_JoyState.publish(Bool(data=self.Joy_active))
                 self.pub_goal.publish(GoalInfo())
                 self.pub_cmdVel.publish(Twist())
             self.cancel_time = now_time
