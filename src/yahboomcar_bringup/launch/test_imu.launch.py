@@ -4,7 +4,7 @@ import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, EnvironmentVariable
+from launch.substitutions import LaunchConfiguration, EnvironmentVariable, EqualsSubstitution, NotSubstitution
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
@@ -33,6 +33,9 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
     robot_type = LaunchConfiguration('robot_type')
 
+    # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2L'))
+    robot_type_is_r2l = EqualsSubstitution(robot_type, 'R2L')
+
     # Get package directory
     yahboomcar_bringup_dir = get_package_share_directory('yahboomcar_bringup')
 
@@ -42,6 +45,7 @@ def generate_launch_description():
         executable='Mcnamu_driver.py',
         name='driver_node',
         output='screen',
+        condition=IfCondition(robot_type_is_r2l),
         parameters=[{
             'xlinear_speed_limit': 1.0,
             'ylinear_speed_limit': 1.0,
@@ -52,9 +56,7 @@ def generate_launch_description():
             ('/pub_vel', '/vel_raw'),
             ('/pub_imu', '/imu/imu_raw'),
             ('/pub_mag', '/mag/mag_raw')
-        ],
-        # TODO: Need to add condition for robot_type == 'R2L'
-        # This requires a more complex condition setup in ROS2
+        ]
     )
 
     # Warning node (for non-R2L robot types)
@@ -62,8 +64,8 @@ def generate_launch_description():
         package='yahboomcar_bringup',
         executable='warning.py',
         name='warning',
-        output='screen'
-        # TODO: Need to add condition for robot_type != 'R2L'
+        output='screen',
+        condition=IfCondition(NotSubstitution(robot_type_is_r2l))
     )
 
     # Base node (odometry publisher)
@@ -107,13 +109,13 @@ def generate_launch_description():
         ]
     )
 
-    # Static transform publisher
+    # Static transform publisher (only for R2L robot type)
     static_tf_node = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='base_link_to_imu_link',
+        condition=IfCondition(robot_type_is_r2l),
         arguments=['-0.1', '0.01', '0.01', '0', '0', '0', '/base_link', '/imu_link']
-        # TODO: Need to add condition for robot_type == 'R2L'
     )
 
     # RViz node

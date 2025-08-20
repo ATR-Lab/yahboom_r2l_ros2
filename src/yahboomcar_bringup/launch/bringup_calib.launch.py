@@ -4,7 +4,7 @@ import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, Command, EnvironmentVariable
+from launch.substitutions import LaunchConfiguration, Command, EnvironmentVariable, EqualsSubstitution, NotSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -35,17 +35,21 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
     robot_type = LaunchConfiguration('robot_type')
 
+    # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2'))
+    robot_type_is_r2 = EqualsSubstitution(robot_type, 'R2')
+
     # Get package directories
     yahboomcar_description_dir = get_package_share_directory('yahboomcar_description')
     yahboomcar_bringup_dir = get_package_share_directory('yahboomcar_bringup')
     yahboomcar_ctrl_dir = get_package_share_directory('yahboomcar_ctrl')
 
-    # Hardware driver node (simplified - should have robot_type condition)
+    # Hardware driver node (only for R2 robot type)
     mcnamu_driver_node = Node(
         package='yahboomcar_bringup',
         executable='Mcnamu_driver.py',
         name='driver_node',
         output='screen',
+        condition=IfCondition(robot_type_is_r2),
         parameters=[{
             'xlinear_speed_limit': 1.0,
             'ylinear_speed_limit': 1.0,
@@ -57,16 +61,15 @@ def generate_launch_description():
             ('/pub_imu', '/imu/imu_raw'),
             ('/pub_mag', '/mag/mag_raw')
         ]
-        # TODO: Add condition for robot_type == 'R2'
     )
 
-    # Warning node (simplified - should have robot_type condition)
+    # Warning node (for non-R2 robot types)
     warning_node = Node(
         package='yahboomcar_bringup',
         executable='warning.py',
         name='warning',
-        output='screen'
-        # TODO: Add condition for robot_type != 'R2'
+        output='screen',
+        condition=IfCondition(NotSubstitution(robot_type_is_r2))
     )
 
     # Base node (odometry publisher)
