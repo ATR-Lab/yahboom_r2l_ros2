@@ -1,0 +1,10 @@
+<launch>
+    <!-- 启动底层驱动 Start the underlying driver -->
+    <include file="$(find yahboomcar_bringup)/launch/bringup.launch"/>
+    <node pkg="yahboomcar_bringup" type="patrol_a1.py" name="YahboomCarPatrol" required="true" output="screen">
+        <param name="circle_adjust" type="double" value="2.0"/>
+    </node>
+    
+    
+    
+</launch>
