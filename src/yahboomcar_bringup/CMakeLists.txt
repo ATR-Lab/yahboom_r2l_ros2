@@ -14,8 +14,41 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(robot_localization REQUIRED)
 find_package(imu_filter_madgwick REQUIRED)
+
+# Build C++ executables
+add_executable(base_node src/base_node.cpp src/base.cpp)
+
+# Add include directories
+target_include_directories(base_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(base_node 
+  rclcpp 
+  std_msgs 
+  sensor_msgs 
+  geometry_msgs 
+  nav_msgs 
+  tf2_ros
+  tf2
+  tf2_geometry_msgs
+)
+
+# Install C++ executables
+install(TARGETS
+  base_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install header files
+install(DIRECTORY include/
+  DESTINATION include/
+)
 
 # Install Python scripts
 install(PROGRAMS
@@ -23,6 +56,11 @@ install(PROGRAMS
   scripts/calibrate_angular.py
   scripts/calibrate_linear.py
   scripts/transform_utils.py
+  scripts/patrol_4ROS.py
+  scripts/patrol_a1.py
+  scripts/Turn_Right.py
+  scripts/test.py
+  scripts/warning.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -32,7 +70,21 @@ install(DIRECTORY
   param
   config
   rviz
+  cfg
   DESTINATION share/${PROJECT_NAME}/
+)
+
+# Export include directories and dependencies
+ament_export_include_directories(include)
+ament_export_dependencies(
+  rclcpp
+  std_msgs
+  sensor_msgs
+  geometry_msgs
+  nav_msgs
+  tf2_ros
+  tf2
+  tf2_geometry_msgs
 )
 
 if(BUILD_TESTING)

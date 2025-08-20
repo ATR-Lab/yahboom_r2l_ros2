@@ -1,23 +1,27 @@
-#ifndef RIKI_BASE_H
-#define RIKI_BASE_H
+#ifndef YAHBOOM_BASE_H
+#define YAHBOOM_BASE_H
 
-#include <ros/ros.h>
-#include <string.h>
-#include <tf/transform_broadcaster.h>
+#include <rclcpp/rclcpp.hpp>
+#include <string>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/twist.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
 using namespace std;
-class RobotBase {
-public:
-    RobotBase(ros::NodeHandle nh,ros::NodeHandle nh_private);
 
-    void velCallback(const geometry_msgs::Twist twist);
+class RobotBase : public rclcpp::Node {
+public:
+    RobotBase();
+
+    void velCallback(const geometry_msgs::msg::Twist::SharedPtr twist);
 
 private:
-    ros::NodeHandle nh_;
-    ros::NodeHandle nh_private;
-    ros::Publisher odom_publisher_;
-    ros::Subscriber velocity_subscriber_;
-    ros::Time last_vel_time_;
-    tf::TransformBroadcaster odom_broadcaster_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr velocity_subscriber_;
+    rclcpp::Time last_vel_time_;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
     string odom_frame;
     string base_footprint_frame;
     double linear_scale_x;

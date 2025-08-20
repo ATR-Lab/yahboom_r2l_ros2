@@ -1,11 +1,10 @@
-#include <ros/ros.h>
-#include "base.h"
+#include <rclcpp/rclcpp.hpp>
+#include "yahboomcar_bringup/base.h"
 
 int main(int argc, char **argv) {
-    ros::init(argc, argv, "odometry_publisher");
-    ros::NodeHandle nh;
-    ros::NodeHandle nh_private("~");
-    RobotBase Robot(nh,nh_private);
-    ros::spin();
+    rclcpp::init(argc, argv);
+    auto robot_node = std::make_shared<RobotBase>();
+    rclcpp::spin(robot_node);
+    rclcpp::shutdown();
     return 0;
 }
