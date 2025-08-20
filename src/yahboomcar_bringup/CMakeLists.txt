@@ -17,6 +17,24 @@ find_package(tf2_ros REQUIRED)
 find_package(robot_localization REQUIRED)
 find_package(imu_filter_madgwick REQUIRED)
 
+# Install Python scripts
+install(PROGRAMS
+  scripts/mcnamu_driver.py
+  scripts/calibrate_angular.py
+  scripts/calibrate_linear.py
+  scripts/transform_utils.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install directories
+install(DIRECTORY
+  launch
+  param
+  config
+  rviz
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
