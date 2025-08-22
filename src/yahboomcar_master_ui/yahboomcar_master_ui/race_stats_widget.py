@@ -44,15 +44,17 @@ class RaceStatsWidget(QWidget):
         self.avg_battery_label = QLabel("🔋 Avg Battery: 83%")
         layout.addWidget(self.avg_battery_label)
         
-        # Safety events
+        # Safety events - now prominently displayed
         safety_label = QLabel("🚨 SAFETY EVENTS")
-        safety_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        safety_label.setStyleSheet("font-weight: bold; font-size: 13px; margin-top: 10px; color: #ff9800;")
         layout.addWidget(safety_label)
         
         self.emergency_stops_label = QLabel("🚨 Emergency Stops: 0")
+        self.emergency_stops_label.setStyleSheet("font-size: 11px;")
         layout.addWidget(self.emergency_stops_label)
         
-        self.warnings_label = QLabel("⚠️ Warnings: 0")
+        self.warnings_label = QLabel("⚠️ Warnings: 0") 
+        self.warnings_label.setStyleSheet("font-size: 11px;")
         layout.addWidget(self.warnings_label)
         
         layout.addStretch()

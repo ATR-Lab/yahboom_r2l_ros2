@@ -183,8 +183,8 @@ class MasterControlWindow(QMainWindow):
     def _create_bottom_panel(self):
         """Create the bottom panel with stats and logs."""
         splitter = QSplitter(Qt.Horizontal)
-        splitter.setMinimumHeight(250)
-        splitter.setMaximumHeight(400)
+        splitter.setMinimumHeight(200)
+        splitter.setMaximumHeight(280)
         
         # Race Stats
         stats_widget = RaceStatsWidget(self.data_manager)

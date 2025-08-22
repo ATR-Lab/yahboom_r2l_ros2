@@ -16,8 +16,8 @@ class ManualControlWidget(QWidget):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-        self.setMinimumHeight(280)
-        self.setMaximumHeight(350)
+        self.setMinimumHeight(200)
+        self.setMaximumHeight(250)
         self._init_ui()
         
         # Update timer

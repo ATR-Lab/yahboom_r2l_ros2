@@ -14,8 +14,8 @@ class SystemStatusWidget(QWidget):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-        self.setMinimumHeight(140)
-        self.setMaximumHeight(180)
+        self.setMinimumHeight(110)
+        self.setMaximumHeight(140)
         self._init_ui()
         
         # Update timer

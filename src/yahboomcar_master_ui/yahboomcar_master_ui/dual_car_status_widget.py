@@ -31,19 +31,19 @@ class SingleCarSection(QWidget):
         layout.setSpacing(4)
         layout.setContentsMargins(8, 8, 8, 8)
         
-        # Header with name and kill button
+        # Header with car number, name, and kill button all on one line
         header_layout = QHBoxLayout()
         
-        # Car name and ID
-        name_label = QLabel(f"🚗 CAR #{self.car_id}")
-        name_label.setStyleSheet("font-weight: bold; font-size: 13px; color: white;")
+        # Car number and name on single line
+        name_label = QLabel(f'🚗 CAR #{self.car_id} "{self.car_name}"')
+        name_label.setStyleSheet(f"font-weight: bold; font-size: 12px; color: {self.car_color};")
         header_layout.addWidget(name_label)
         
         header_layout.addStretch()
         
-        # Kill button
-        self.kill_button = QPushButton("🔴")
-        self.kill_button.setFixedSize(30, 25)
+        # Kill button with full text
+        self.kill_button = QPushButton("🔴 KILL")
+        self.kill_button.setFixedSize(70, 25)
         self.kill_button.setStyleSheet("""
             QPushButton {
                 background-color: #cc0000;
@@ -51,7 +51,7 @@ class SingleCarSection(QWidget):
                 font-weight: bold;
                 border: 1px solid #ff0000;
                 border-radius: 3px;
-                font-size: 12px;
+                font-size: 10px;
             }
             QPushButton:hover {
                 background-color: #ff0000;
@@ -62,23 +62,17 @@ class SingleCarSection(QWidget):
         
         layout.addLayout(header_layout)
         
-        # Car name
-        car_name_label = QLabel(f'"{self.car_name}"')
-        car_name_label.setStyleSheet(f"color: {self.car_color}; font-weight: bold; font-size: 12px;")
-        layout.addWidget(car_name_label)
-        
-        # Connection status indicators (more compact)
+        # Connection status indicators with full labels
         conn_layout = QHBoxLayout()
-        conn_layout.setSpacing(2)
+        conn_layout.setSpacing(8)
         
-        self.webrtc_indicator = self._create_compact_indicator("W", "🔴")
-        self.bluetooth_indicator = self._create_compact_indicator("B", "🔴") 
-        self.ros2_indicator = self._create_compact_indicator("R", "🔴")
+        self.webrtc_indicator = self._create_status_indicator("WebRTC", "🔴")
+        self.bluetooth_indicator = self._create_status_indicator("Bluetooth", "🔴") 
+        self.ros2_indicator = self._create_status_indicator("ROS2", "🔴")
         
         conn_layout.addWidget(self.webrtc_indicator)
         conn_layout.addWidget(self.bluetooth_indicator)
         conn_layout.addWidget(self.ros2_indicator)
-        conn_layout.addStretch()
         
         layout.addLayout(conn_layout)
         
@@ -142,17 +136,17 @@ class SingleCarSection(QWidget):
         
         layout.addLayout(metrics_layout)
         
-        # Action buttons (larger and more spaced)
+        # Action buttons with full text labels
         actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(3)
+        actions_layout.setSpacing(4)
         
-        self.manual_button = QPushButton("📱")
-        self.manual_button.setFixedSize(35, 28)
+        self.manual_button = QPushButton("📱 MANUAL")
+        self.manual_button.setFixedSize(80, 25)
         self.manual_button.setStyleSheet("""
             QPushButton {
                 background-color: #0066cc;
                 color: white;
-                font-size: 10px;
+                font-size: 9px;
                 border-radius: 3px;
             }
             QPushButton:hover {
@@ -162,13 +156,13 @@ class SingleCarSection(QWidget):
         self.manual_button.clicked.connect(self._toggle_manual_control)
         actions_layout.addWidget(self.manual_button)
         
-        self.reset_button = QPushButton("🔄")
-        self.reset_button.setFixedSize(35, 28)
+        self.reset_button = QPushButton("🔄 RESET")
+        self.reset_button.setFixedSize(70, 25)
         self.reset_button.setStyleSheet("""
             QPushButton {
                 background-color: #009900;
                 color: white;
-                font-size: 10px;
+                font-size: 9px;
                 border-radius: 3px;
             }
             QPushButton:hover {
@@ -178,26 +172,24 @@ class SingleCarSection(QWidget):
         self.reset_button.clicked.connect(self._reset_car)
         actions_layout.addWidget(self.reset_button)
         
-        self.details_button = QPushButton("📊")
-        self.details_button.setFixedSize(35, 28)
+        self.details_button = QPushButton("📊 INFO")
+        self.details_button.setFixedSize(65, 25)
         self.details_button.setStyleSheet("""
             QPushButton {
                 background-color: #666;
                 color: white;
-                font-size: 10px;
+                font-size: 9px;
                 border-radius: 3px;
             }
         """)
         actions_layout.addWidget(self.details_button)
         
-        actions_layout.addStretch()
         layout.addLayout(actions_layout)
     
-    def _create_compact_indicator(self, label, status):
-        """Create a compact connection status indicator."""
-        indicator = QLabel(f"{status}{label}")
-        indicator.setStyleSheet("font-size: 9px; padding: 1px; color: #aaa;")
-        indicator.setFixedWidth(25)
+    def _create_status_indicator(self, name, initial_status):
+        """Create a connection status indicator with full name."""
+        indicator = QLabel(f"{initial_status} {name}")
+        indicator.setStyleSheet("font-size: 9px; padding: 2px;")
         return indicator
     
     def update_data(self):
@@ -208,13 +200,13 @@ class SingleCarSection(QWidget):
         
         # Update connection indicators
         self._update_connection_indicator(
-            self.webrtc_indicator, "W", car_data.webrtc_connected
+            self.webrtc_indicator, "WebRTC", car_data.webrtc_connected
         )
         self._update_connection_indicator(
-            self.bluetooth_indicator, "B", car_data.bluetooth_connected
+            self.bluetooth_indicator, "Bluetooth", car_data.bluetooth_connected
         )
         self._update_connection_indicator(
-            self.ros2_indicator, "R", car_data.ros2_connected
+            self.ros2_indicator, "ROS2", car_data.ros2_connected
         )
         
         # Update control mode
@@ -254,14 +246,14 @@ class SingleCarSection(QWidget):
         # Update button states
         self._update_button_states(car_data)
     
-    def _update_connection_indicator(self, indicator, label, connected):
+    def _update_connection_indicator(self, indicator, name, connected):
         """Update a connection status indicator."""
         if connected:
-            indicator.setText(f"🟢{label}")
-            indicator.setStyleSheet("font-size: 9px; padding: 1px; color: #4caf50;")
+            indicator.setText(f"🟢 {name}")
+            indicator.setStyleSheet("font-size: 9px; padding: 2px; color: #4caf50;")
         else:
-            indicator.setText(f"🔴{label}")
-            indicator.setStyleSheet("font-size: 9px; padding: 1px; color: #f44336;")
+            indicator.setText(f"🔴 {name}")
+            indicator.setStyleSheet("font-size: 9px; padding: 2px; color: #f44336;")
     
     def _update_control_mode(self, mode, emergency_stopped):
         """Update the control mode display."""
@@ -287,9 +279,9 @@ class SingleCarSection(QWidget):
         self.manual_button.setEnabled(manual_enabled)
         
         if car_data.control_mode == "MANUAL":
-            self.manual_button.setText("⏹️")
+            self.manual_button.setText("⏹️ RELEASE")
         else:
-            self.manual_button.setText("📱")
+            self.manual_button.setText("📱 MANUAL")
     
     def _emergency_stop(self):
         """Trigger emergency stop for this car."""
@@ -317,8 +309,8 @@ class DualCarStatusWidget(QWidget):
         self.data_manager = data_manager
         self.car_sections = {}
         
-        self.setMinimumSize(500, 280)  # Larger minimum size for better readability
-        self.setMaximumHeight(320)     # Prevent excessive growth
+        self.setMinimumSize(500, 240)  # Reduced height for screen compatibility
+        self.setMaximumHeight(280)     # Prevent excessive growth
         self._init_ui()
         
         # Update timer
