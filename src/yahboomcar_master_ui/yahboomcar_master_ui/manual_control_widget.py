@@ -16,7 +16,8 @@ class ManualControlWidget(QWidget):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-        self.setFixedHeight(250)
+        self.setMinimumHeight(280)
+        self.setMaximumHeight(350)
         self._init_ui()
         
         # Update timer
@@ -44,7 +45,7 @@ class ManualControlWidget(QWidget):
         
         # Car selection grid
         selection_label = QLabel("SELECT TARGET CAR:")
-        selection_label.setStyleSheet("font-size: 12px; margin-top: 10px;")
+        selection_label.setStyleSheet("font-size: 13px; font-weight: bold; margin-top: 10px;")
         layout.addWidget(selection_label)
         
         car_grid = QGridLayout()

@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QPalette
 
-from .car_status_widget import CarStatusWidget
+from .dual_car_status_widget import DualCarStatusWidget
 from .system_status_widget import SystemStatusWidget
 from .manual_control_widget import ManualControlWidget
 from .game_state_widget import GameStateWidget
@@ -69,8 +69,8 @@ class MasterControlWindow(QMainWindow):
         bottom_widget = self._create_bottom_panel()
         main_layout.addWidget(bottom_widget)
         
-        # Set splitter proportions
-        content_splitter.setSizes([1000, 600])
+        # Set splitter proportions - more space for left panel with dual cards
+        content_splitter.setSizes([1100, 500])
         
     def _create_menu_bar(self):
         """Create the top menu bar with emergency controls."""
@@ -127,11 +127,12 @@ class MasterControlWindow(QMainWindow):
         cars_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
         layout.addWidget(cars_label)
         
-        # Grid for car status cards (2x2 for 4 cars)
+        # Grid for dual car status cards (2 cards showing 4 cars)
         car_grid = QWidget()
-        car_layout = QGridLayout(car_grid)
+        car_layout = QVBoxLayout(car_grid)
+        car_layout.setSpacing(8)
         
-        # Create car status widgets
+        # Create car configurations
         car_configs = [
             {"id": 1, "name": "Lightning", "color": "#ff6b6b"},
             {"id": 2, "name": "Thunder", "color": "#4ecdc4"},
@@ -139,11 +140,15 @@ class MasterControlWindow(QMainWindow):
             {"id": 4, "name": "Blitz", "color": "#f9ca24"}
         ]
         
-        for i, config in enumerate(car_configs):
-            car_widget = CarStatusWidget(config, self.data_manager)
-            self.car_widgets[config["id"]] = car_widget
-            row, col = divmod(i, 2)
-            car_layout.addWidget(car_widget, row, col)
+        # Create two dual car cards
+        dual_card_1 = DualCarStatusWidget([car_configs[0], car_configs[1]], self.data_manager)
+        dual_card_2 = DualCarStatusWidget([car_configs[2], car_configs[3]], self.data_manager)
+        
+        # Store references to dual cards for access
+        self.dual_cards = [dual_card_1, dual_card_2]
+        
+        car_layout.addWidget(dual_card_1)
+        car_layout.addWidget(dual_card_2)
         
         layout.addWidget(car_grid)
         layout.addStretch()
@@ -178,7 +183,8 @@ class MasterControlWindow(QMainWindow):
     def _create_bottom_panel(self):
         """Create the bottom panel with stats and logs."""
         splitter = QSplitter(Qt.Horizontal)
-        splitter.setFixedHeight(300)
+        splitter.setMinimumHeight(250)
+        splitter.setMaximumHeight(400)
         
         # Race Stats
         stats_widget = RaceStatsWidget(self.data_manager)

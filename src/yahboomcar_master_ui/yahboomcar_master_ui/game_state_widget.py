@@ -13,7 +13,8 @@ class GameStateWidget(QWidget):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-        self.setFixedHeight(180)
+        self.setMinimumHeight(200)
+        self.setMaximumHeight(250)
         self._init_ui()
         
         # Update timer
@@ -36,7 +37,7 @@ class GameStateWidget(QWidget):
         
         # Race status
         race_label = QLabel("🏁 RACE STATUS")
-        race_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        race_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(race_label)
         
         self.race_time_label = QLabel("⏱️ Race Time: 00:00")
@@ -52,7 +53,7 @@ class GameStateWidget(QWidget):
         
         # Track conditions
         conditions_label = QLabel("🌤️ TRACK CONDITIONS")
-        conditions_label.setStyleSheet("font-weight: bold; font-size: 12px; margin-top: 10px;")
+        conditions_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
         layout.addWidget(conditions_label)
         
         self.weather_label = QLabel("☀️ Clear, Dry")
@@ -60,6 +61,9 @@ class GameStateWidget(QWidget):
         
         self.temperature_label = QLabel("🌡️ 22°C Optimal")
         layout.addWidget(self.temperature_label)
+        
+        # Add stretch to fill remaining space and prevent empty area at bottom
+        layout.addStretch()
     
     def _update_data(self):
         """Update game state display."""

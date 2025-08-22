@@ -14,7 +14,8 @@ class SystemStatusWidget(QWidget):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-        self.setFixedHeight(120)
+        self.setMinimumHeight(140)
+        self.setMaximumHeight(180)
         self._init_ui()
         
         # Update timer
@@ -51,6 +52,9 @@ class SystemStatusWidget(QWidget):
         # Joystick status
         self.joystick_label = QLabel("Joystick: 🔴 Disconnected")
         layout.addWidget(self.joystick_label)
+        
+        # Add stretch to use available space efficiently
+        layout.addStretch()
     
     def _update_data(self):
         """Update system status display."""
