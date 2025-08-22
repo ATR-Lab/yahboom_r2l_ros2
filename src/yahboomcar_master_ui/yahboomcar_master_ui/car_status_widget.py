@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""
+Car Status Widget - Individual car monitoring and control card.
+Displays comprehensive status for each robot car with integrated connection monitoring.
+"""
+
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+    QProgressBar, QFrame, QGridLayout
+)
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont, QPalette
+
+
+class CarStatusWidget(QWidget):
+    """Widget displaying comprehensive status for a single robot car."""
+    
+    def __init__(self, car_config, data_manager):
+        super().__init__()
+        self.car_id = car_config["id"]
+        self.car_name = car_config["name"]
+        self.car_color = car_config["color"]
+        self.data_manager = data_manager
+        
+        self.setFixedSize(300, 200)
+        self._init_ui()
+        
+        # Update timer for real-time data
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._update_data)
+        self.update_timer.start(200)  # 5Hz updates
+    
+    def _init_ui(self):
+        """Initialize the car status UI."""
+        self.setStyleSheet(f"""
+            QWidget {{
+                border: 2px solid {self.car_color};
+                border-radius: 8px;
+                background-color: #2b2b2b;
+                margin: 2px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(5)
+        layout.setContentsMargins(8, 8, 8, 8)
+        
+        # Header with name and kill button
+        header_layout = QHBoxLayout()
+        
+        # Car name and ID
+        name_label = QLabel(f"🚗 CAR #{self.car_id}")
+        name_label.setStyleSheet("font-weight: bold; font-size: 12px; color: white;")
+        header_layout.addWidget(name_label)
+        
+        car_name_label = QLabel(f'"{self.car_name}"')
+        car_name_label.setStyleSheet(f"color: {self.car_color}; font-weight: bold;")
+        header_layout.addWidget(car_name_label)
+        
+        header_layout.addStretch()
+        
+        # Kill button
+        self.kill_button = QPushButton("🔴 KILL")
+        self.kill_button.setFixedSize(60, 25)
+        self.kill_button.setStyleSheet("""
+            QPushButton {
+                background-color: #cc0000;
+                color: white;
+                font-weight: bold;
+                border: 1px solid #ff0000;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #ff0000;
+            }
+        """)
+        self.kill_button.clicked.connect(self._emergency_stop)
+        header_layout.addWidget(self.kill_button)
+        
+        layout.addLayout(header_layout)
+        
+        # Connection status indicators
+        conn_layout = QHBoxLayout()
+        
+        self.webrtc_indicator = self._create_status_indicator("WebRTC", "🔴")
+        self.bluetooth_indicator = self._create_status_indicator("Bluetooth", "🔴")
+        self.ros2_indicator = self._create_status_indicator("ROS2", "🔴")
+        
+        conn_layout.addWidget(self.webrtc_indicator)
+        conn_layout.addWidget(self.bluetooth_indicator)
+        conn_layout.addWidget(self.ros2_indicator)
+        
+        layout.addLayout(conn_layout)
+        
+        # Control mode indicator
+        self.control_mode_frame = QFrame()
+        self.control_mode_frame.setFixedHeight(25)
+        self.control_mode_frame.setStyleSheet("background-color: #404040; border-radius: 3px;")
+        
+        mode_layout = QHBoxLayout(self.control_mode_frame)
+        mode_layout.setContentsMargins(5, 2, 5, 2)
+        
+        self.control_mode_label = QLabel("RACING MODE")
+        self.control_mode_label.setStyleSheet("color: #00ff00; font-weight: bold; font-size: 10px;")
+        self.control_mode_label.setAlignment(Qt.AlignCenter)
+        mode_layout.addWidget(self.control_mode_label)
+        
+        layout.addWidget(self.control_mode_frame)
+        
+        # Vital signs
+        vitals_layout = QGridLayout()
+        vitals_layout.setSpacing(3)
+        
+        # Battery
+        battery_layout = QHBoxLayout()
+        battery_layout.addWidget(QLabel("⚡"))
+        
+        self.battery_bar = QProgressBar()
+        self.battery_bar.setFixedHeight(15)
+        self.battery_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #666;
+                border-radius: 3px;
+                text-align: center;
+                font-size: 9px;
+            }
+            QProgressBar::chunk {
+                background-color: #4caf50;
+                border-radius: 2px;
+            }
+        """)
+        battery_layout.addWidget(self.battery_bar)
+        
+        self.battery_voltage_label = QLabel("12.4V")
+        self.battery_voltage_label.setStyleSheet("font-size: 9px; color: #aaa;")
+        battery_layout.addWidget(self.battery_voltage_label)
+        
+        vitals_layout.addLayout(battery_layout, 0, 0, 1, 2)
+        
+        # Speed and position
+        self.speed_label = QLabel("🏎️ 0.0 m/s")
+        self.speed_label.setStyleSheet("font-size: 10px;")
+        vitals_layout.addWidget(self.speed_label, 1, 0)
+        
+        self.position_label = QLabel("📍 (0.0, 0.0)")
+        self.position_label.setStyleSheet("font-size: 10px;")
+        vitals_layout.addWidget(self.position_label, 1, 1)
+        
+        self.heading_label = QLabel("🧭 0°")
+        self.heading_label.setStyleSheet("font-size: 10px;")
+        vitals_layout.addWidget(self.heading_label, 2, 0)
+        
+        layout.addLayout(vitals_layout)
+        
+        # Action buttons
+        actions_layout = QHBoxLayout()
+        
+        self.manual_button = QPushButton("📱 MANUAL")
+        self.manual_button.setFixedHeight(25)
+        self.manual_button.setStyleSheet("""
+            QPushButton {
+                background-color: #0066cc;
+                color: white;
+                font-size: 9px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #0080ff;
+            }
+        """)
+        self.manual_button.clicked.connect(self._toggle_manual_control)
+        actions_layout.addWidget(self.manual_button)
+        
+        self.reset_button = QPushButton("🔄 RESET")
+        self.reset_button.setFixedHeight(25)
+        self.reset_button.setStyleSheet("""
+            QPushButton {
+                background-color: #009900;
+                color: white;
+                font-size: 9px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #00cc00;
+            }
+        """)
+        self.reset_button.clicked.connect(self._reset_car)
+        actions_layout.addWidget(self.reset_button)
+        
+        self.details_button = QPushButton("📊")
+        self.details_button.setFixedSize(30, 25)
+        self.details_button.setStyleSheet("""
+            QPushButton {
+                background-color: #666;
+                color: white;
+                font-size: 9px;
+                border-radius: 3px;
+            }
+        """)
+        actions_layout.addWidget(self.details_button)
+        
+        layout.addLayout(actions_layout)
+    
+    def _create_status_indicator(self, name, initial_status):
+        """Create a connection status indicator."""
+        indicator = QLabel(f"{initial_status} {name}")
+        indicator.setStyleSheet("font-size: 9px; padding: 2px;")
+        return indicator
+    
+    def _update_data(self):
+        """Update the widget with latest car data."""
+        car_data = self.data_manager.get_car_data(self.car_id)
+        if not car_data:
+            return
+        
+        # Update connection indicators
+        self._update_connection_indicator(
+            self.webrtc_indicator, "WebRTC", car_data.webrtc_connected
+        )
+        self._update_connection_indicator(
+            self.bluetooth_indicator, "Bluetooth", car_data.bluetooth_connected
+        )
+        self._update_connection_indicator(
+            self.ros2_indicator, "ROS2", car_data.ros2_connected
+        )
+        
+        # Update control mode
+        self._update_control_mode(car_data.control_mode, car_data.emergency_stopped)
+        
+        # Update battery
+        self.battery_bar.setValue(car_data.battery_percentage)
+        self.battery_voltage_label.setText(f"{car_data.battery_voltage:.1f}V")
+        
+        # Update battery color based on level
+        if car_data.battery_percentage < 20:
+            color = "#f44336"  # Red
+        elif car_data.battery_percentage < 40:
+            color = "#ff9800"  # Orange
+        else:
+            color = "#4caf50"  # Green
+        
+        self.battery_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid #666;
+                border-radius: 3px;
+                text-align: center;
+                font-size: 9px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+                border-radius: 2px;
+            }}
+        """)
+        
+        # Update speed and position
+        self.speed_label.setText(f"🏎️ {car_data.speed_linear:.1f} m/s")
+        self.position_label.setText(f"📍 ({car_data.position_x:.1f}, {car_data.position_y:.1f})")
+        self.heading_label.setText(f"🧭 {car_data.heading:.0f}°")
+        
+        # Update button states
+        self._update_button_states(car_data)
+    
+    def _update_connection_indicator(self, indicator, name, connected):
+        """Update a connection status indicator."""
+        if connected:
+            indicator.setText(f"🟢 {name}")
+            indicator.setStyleSheet("font-size: 9px; padding: 2px; color: #4caf50;")
+        else:
+            indicator.setText(f"🔴 {name}")
+            indicator.setStyleSheet("font-size: 9px; padding: 2px; color: #f44336;")
+    
+    def _update_control_mode(self, mode, emergency_stopped):
+        """Update the control mode display."""
+        if emergency_stopped:
+            self.control_mode_label.setText("🚨 EMERGENCY STOPPED")
+            self.control_mode_label.setStyleSheet("color: #ff0000; font-weight: bold; font-size: 10px;")
+            self.control_mode_frame.setStyleSheet("background-color: #660000; border-radius: 3px;")
+        elif mode == "MANUAL":
+            self.control_mode_label.setText("🎮 MANUAL CONTROL ACTIVE")
+            self.control_mode_label.setStyleSheet("color: #00ccff; font-weight: bold; font-size: 10px;")
+            self.control_mode_frame.setStyleSheet("background-color: #003366; border-radius: 3px;")
+        else:  # RACING
+            self.control_mode_label.setText("🏁 RACING MODE")
+            self.control_mode_label.setStyleSheet("color: #00ff00; font-weight: bold; font-size: 10px;")
+            self.control_mode_frame.setStyleSheet("background-color: #404040; border-radius: 3px;")
+    
+    def _update_button_states(self, car_data):
+        """Update button enable/disable states."""
+        # Kill button always enabled unless already stopped
+        self.kill_button.setEnabled(not car_data.emergency_stopped)
+        
+        # Reset button enabled only if emergency stopped
+        self.reset_button.setEnabled(car_data.emergency_stopped)
+        
+        # Manual button enabled if ROS2 connected and not emergency stopped
+        manual_enabled = car_data.ros2_connected and not car_data.emergency_stopped
+        self.manual_button.setEnabled(manual_enabled)
+        
+        # Update manual button text based on current mode
+        if car_data.control_mode == "MANUAL":
+            self.manual_button.setText("⏹️ RELEASE")
+        else:
+            self.manual_button.setText("📱 MANUAL")
+    
+    def _emergency_stop(self):
+        """Trigger emergency stop for this car."""
+        self.data_manager.emergency_stop(self.car_id)
+    
+    def _toggle_manual_control(self):
+        """Toggle manual control for this car."""
+        current_mode = self.data_manager.get_car_control_mode(self.car_id)
+        if current_mode == "MANUAL":
+            self.data_manager.set_manual_control(self.car_id, False)
+        else:
+            self.data_manager.set_manual_control(self.car_id, True)
+    
+    def _reset_car(self):
+        """Reset car from emergency stop."""
+        self.data_manager.reset_car(self.car_id)
