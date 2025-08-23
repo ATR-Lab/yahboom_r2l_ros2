@@ -119,7 +119,6 @@ class CarStatusWidget(QWidget):
             QPushButton:pressed {
                 background-color: #aa0000;
                 border: 1px solid #cc0000;
-                transform: translateY(1px);
             }
         """)
         self.kill_button.clicked.connect(self._emergency_stop)
@@ -219,7 +218,6 @@ class CarStatusWidget(QWidget):
             QPushButton:pressed {
                 background-color: #004499;
                 border: 1px solid #0066cc;
-                transform: translateY(1px);
             }
         """)
         self.manual_button.clicked.connect(self._toggle_manual_control)
@@ -241,7 +239,6 @@ class CarStatusWidget(QWidget):
             QPushButton:pressed {
                 background-color: #007700;
                 border: 1px solid #009900;
-                transform: translateY(1px);
             }
         """)
         self.reset_button.clicked.connect(self._reset_car)
@@ -263,7 +260,6 @@ class CarStatusWidget(QWidget):
             QPushButton:pressed {
                 background-color: #555;
                 border: 1px solid #666;
-                transform: translateY(1px);
             }
         """)
         self.details_button.clicked.connect(self._show_car_details)

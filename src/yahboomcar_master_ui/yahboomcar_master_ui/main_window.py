@@ -98,7 +98,6 @@ class MasterControlWindow(QMainWindow):
                 QPushButton:pressed {
                     background-color: #303030;
                     border: 1px solid #555;
-                    transform: translateY(1px);
                 }
             """)
             btn.clicked.connect(lambda checked, menu=button_text: self._on_menu_button_clicked(menu))
@@ -125,7 +124,6 @@ class MasterControlWindow(QMainWindow):
             QPushButton:pressed {
                 background-color: #aa0000;
                 border: 2px solid #cc0000;
-                transform: translateY(1px);
             }
         """)
         emergency_btn.clicked.connect(self._emergency_stop_all)
