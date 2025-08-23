@@ -27,9 +27,10 @@ class SingleCarSection(QWidget):
     
     def _init_ui(self):
         """Initialize the single car section UI."""
-        # Apply car color as border
+        # Set object name and apply car color as border to container only
+        self.setObjectName("car_section")
         self.setStyleSheet(f"""
-            QWidget {{
+            QWidget#car_section {{
                 border: 2px solid {self.car_color};
                 border-radius: 8px;
                 background-color: #2b2b2b;
