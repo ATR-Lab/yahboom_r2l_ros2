@@ -27,6 +27,16 @@ class SingleCarSection(QWidget):
     
     def _init_ui(self):
         """Initialize the single car section UI."""
+        # Apply car color as border
+        self.setStyleSheet(f"""
+            QWidget {{
+                border: 2px solid {self.car_color};
+                border-radius: 8px;
+                background-color: #2b2b2b;
+                margin: 2px;
+            }}
+        """)
+        
         layout = QVBoxLayout(self)
         layout.setSpacing(4)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -320,12 +330,11 @@ class DualCarStatusWidget(QWidget):
     
     def _init_ui(self):
         """Initialize the dual car status UI."""
-        # Main border styling
+        # Main container styling
         self.setStyleSheet("""
             DualCarStatusWidget {
-                border: 2px solid #555;
-                border-radius: 8px;
                 background-color: #2b2b2b;
+                border-radius: 8px;
                 margin: 3px;
             }
         """)
