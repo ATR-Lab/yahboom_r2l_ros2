@@ -84,7 +84,23 @@ class MasterControlWindow(QMainWindow):
         buttons = ["System Overview", "Race Control", "Manual Control", "Settings", "Alerts"]
         for button_text in buttons:
             btn = QPushButton(button_text)
-            btn.setStyleSheet("QPushButton { background-color: #404040; border: 1px solid #666; padding: 8px 16px; }")
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #404040;
+                    border: 1px solid #666;
+                    padding: 8px 16px;
+                    border-radius: 3px;
+                }
+                QPushButton:hover {
+                    background-color: #505050;
+                    border: 1px solid #777;
+                }
+                QPushButton:pressed {
+                    background-color: #303030;
+                    border: 1px solid #555;
+                    transform: translateY(1px);
+                }
+            """)
             btn.clicked.connect(lambda checked, menu=button_text: self._on_menu_button_clicked(menu))
             layout.addWidget(btn)
         
@@ -100,9 +116,16 @@ class MasterControlWindow(QMainWindow):
                 font-size: 14px;
                 padding: 8px 20px;
                 border: 2px solid #ff0000;
+                border-radius: 3px;
             }
             QPushButton:hover {
                 background-color: #ff0000;
+                border: 2px solid #ff3333;
+            }
+            QPushButton:pressed {
+                background-color: #aa0000;
+                border: 2px solid #cc0000;
+                transform: translateY(1px);
             }
         """)
         emergency_btn.clicked.connect(self._emergency_stop_all)

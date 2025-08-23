@@ -74,9 +74,28 @@ class ManualControlWidget(QWidget):
                     border-radius: 3px;
                     font-size: 9px;
                 }
+                QPushButton:hover {
+                    background-color: #505050;
+                    border: 1px solid #777;
+                }
+                QPushButton:pressed {
+                    background-color: #303030;
+                    border: 1px solid #555;
+                    transform: translateY(1px);
+                }
                 QPushButton:checked {
                     background-color: #0066cc;
                     color: white;
+                    border: 1px solid #0080ff;
+                }
+                QPushButton:checked:hover {
+                    background-color: #0080ff;
+                    border: 1px solid #33aaff;
+                }
+                QPushButton:checked:pressed {
+                    background-color: #004499;
+                    border: 1px solid #0066cc;
+                    transform: translateY(1px);
                 }
                 QPushButton:disabled {
                     background-color: #2a2a2a;
@@ -120,6 +139,16 @@ class ManualControlWidget(QWidget):
                 color: white;
                 font-weight: bold;
                 padding: 8px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #ff0000;
+                border: 1px solid #ff3333;
+            }
+            QPushButton:pressed {
+                background-color: #aa0000;
+                border: 1px solid #cc0000;
+                transform: translateY(1px);
             }
         """)
         self.emergency_stop_btn.clicked.connect(self._emergency_stop_selected)
@@ -131,6 +160,16 @@ class ManualControlWidget(QWidget):
                 background-color: #666;
                 color: white;
                 padding: 8px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #777;
+                border: 1px solid #888;
+            }
+            QPushButton:pressed {
+                background-color: #555;
+                border: 1px solid #666;
+                transform: translateY(1px);
             }
         """)
         self.release_btn.clicked.connect(self._release_control)
