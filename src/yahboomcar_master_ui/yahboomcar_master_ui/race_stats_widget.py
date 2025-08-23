@@ -3,7 +3,7 @@
 Race Statistics Widget - Performance metrics and analytics.
 """
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt5.QtCore import QTimer
 
 
@@ -31,33 +31,46 @@ class RaceStatsWidget(QWidget):
             }
         """)
         
-        layout = QVBoxLayout(self)
+        # Main horizontal layout
+        main_layout = QHBoxLayout(self)
+        
+        # Left panel: Race Statistics
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
         
         title_label = QLabel("📊 RACE STATISTICS")
         title_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 5px;")
-        layout.addWidget(title_label)
+        left_layout.addWidget(title_label)
         
-        # Performance metrics
         self.avg_speed_label = QLabel("📈 Avg Speed: 2.1 m/s")
-        layout.addWidget(self.avg_speed_label)
+        left_layout.addWidget(self.avg_speed_label)
         
         self.avg_battery_label = QLabel("🔋 Avg Battery: 83%")
-        layout.addWidget(self.avg_battery_label)
+        left_layout.addWidget(self.avg_battery_label)
         
-        # Safety events - now prominently displayed
+        left_layout.addStretch()
+        
+        # Right panel: Safety Events
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        
         safety_label = QLabel("🚨 SAFETY EVENTS")
-        safety_label.setStyleSheet("font-weight: bold; font-size: 13px; margin-top: 10px; color: #ff9800;")
-        layout.addWidget(safety_label)
+        safety_label.setStyleSheet("font-weight: bold; font-size: 13px; margin-bottom: 5px; color: #ff9800;")
+        right_layout.addWidget(safety_label)
         
         self.emergency_stops_label = QLabel("🚨 Emergency Stops: 0")
         self.emergency_stops_label.setStyleSheet("font-size: 11px;")
-        layout.addWidget(self.emergency_stops_label)
+        right_layout.addWidget(self.emergency_stops_label)
         
-        self.warnings_label = QLabel("⚠️ Warnings: 0") 
+        self.warnings_label = QLabel("⚠️ Warnings: 0")
         self.warnings_label.setStyleSheet("font-size: 11px;")
-        layout.addWidget(self.warnings_label)
+        right_layout.addWidget(self.warnings_label)
         
-        layout.addStretch()
+        right_layout.addStretch()
+        
+        # Add panels to main layout
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel)
     
     def _update_data(self):
         """Update race statistics."""
