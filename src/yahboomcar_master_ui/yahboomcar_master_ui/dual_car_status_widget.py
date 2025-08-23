@@ -9,7 +9,48 @@ from PyQt5.QtWidgets import (
     QProgressBar, QFrame, QGridLayout
 )
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QFont, QPalette
+from PyQt5.QtGui import QFont, QPalette, QPainter, QTransform
+
+
+class RotatedLabel(QWidget):
+    """Custom widget that can display rotated text without borders."""
+    
+    def __init__(self, text, rotation_angle=0, parent=None):
+        super().__init__(parent)
+        self.text_content = text
+        self.rotation_angle = rotation_angle
+        
+        # Make background transparent
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setStyleSheet("background-color: transparent;")
+        
+    def paintEvent(self, event):
+        """Custom paint event to draw rotated text."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Get the center of the widget
+        center_x = self.width() // 2
+        center_y = self.height() // 2
+        
+        # Set up font and color
+        from PyQt5.QtGui import QColor, QFont
+        painter.setPen(QColor(255, 255, 255))  # White color
+        font = QFont()
+        font.setPointSize(18)  # Slightly smaller font for better fit
+        font.setBold(True)
+        painter.setFont(font)
+        
+        # Apply rotation around center
+        painter.translate(center_x, center_y)
+        painter.rotate(self.rotation_angle)
+        
+        # Draw text centered within the full widget area
+        # Use larger drawing area based on widget dimensions
+        text_width = max(200, self.width() - 40)
+        text_height = 40
+        painter.drawText(-text_width//2, -text_height//2, text_width, text_height, Qt.AlignCenter, self.text_content)
+        painter.end()
 
 
 class SingleCarSection(QWidget):
@@ -355,6 +396,18 @@ class SingleCarSection(QWidget):
                 border-radius: 8px;
             }
         """)
+        
+        # Size overlay to match container frame exactly
+        self.inactive_overlay.resize(self.container_frame.size())
+        self.inactive_overlay.move(0, 0)
+        
+        # Add rotated INACTIVE text label spanning full overlay
+        self.inactive_label = RotatedLabel("INACTIVE", -45, self.inactive_overlay)
+        
+        # Make the label span the full overlay size dynamically
+        self.inactive_label.resize(self.inactive_overlay.size())
+        self.inactive_label.move(0, 0)
+        
         # Block mouse events to prevent interaction
         self.inactive_overlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
         self.inactive_overlay.show()
@@ -362,8 +415,12 @@ class SingleCarSection(QWidget):
     def resizeEvent(self, event):
         """Handle resize events to keep overlay properly sized."""
         super().resizeEvent(event)
-        if self.inactive_overlay and hasattr(self, 'container_frame'):
+        if hasattr(self, 'inactive_overlay') and self.inactive_overlay and hasattr(self, 'container_frame'):
+            # Resize overlay to match container frame
             self.inactive_overlay.resize(self.container_frame.size())
+            # Resize label to match overlay
+            if hasattr(self, 'inactive_label') and self.inactive_label:
+                self.inactive_label.resize(self.inactive_overlay.size())
 
 
 class DualCarStatusWidget(QWidget):
