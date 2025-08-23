@@ -33,38 +33,47 @@ class GameStateWidget(QWidget):
             }
         """)
         
-        layout = QVBoxLayout(self)
-        layout.setSpacing(8)  # Add consistent spacing between elements
+        layout = QHBoxLayout(self)
+        layout.setSpacing(15)  # Add spacing between the two columns
         
-        # Race status
+        # Left column: Race Status
+        race_column = QVBoxLayout()
+        race_column.setSpacing(5)
+        
         race_label = QLabel("🏁 RACE STATUS")
         race_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 5px;")
-        layout.addWidget(race_label)
+        race_column.addWidget(race_label)
         
         self.race_time_label = QLabel("⏱️ Race Time: 00:00")
-        layout.addWidget(self.race_time_label)
+        race_column.addWidget(self.race_time_label)
         
         self.lap_label = QLabel("🏁 Lap: 1/5")
-        layout.addWidget(self.lap_label)
+        race_column.addWidget(self.lap_label)
         
         # Current leader
         self.leader_label = QLabel("🥇 Leader: Car #1")
         self.leader_label.setStyleSheet("color: #ffd700;")
-        layout.addWidget(self.leader_label)
+        race_column.addWidget(self.leader_label)
         
-        # Track conditions
+        race_column.addStretch()
+        layout.addLayout(race_column)
+        
+        # Right column: Track Conditions
+        track_column = QVBoxLayout()
+        track_column.setSpacing(5)
+        
         conditions_label = QLabel("🌤️ TRACK CONDITIONS")
-        conditions_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 15px; margin-bottom: 5px;")
-        layout.addWidget(conditions_label)
+        conditions_label.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 5px;")
+        track_column.addWidget(conditions_label)
         
         self.weather_label = QLabel("☀️ Clear, Dry")
-        layout.addWidget(self.weather_label)
+        track_column.addWidget(self.weather_label)
         
         self.temperature_label = QLabel("🌡️ 22°C Optimal")
-        layout.addWidget(self.temperature_label)
+        track_column.addWidget(self.temperature_label)
         
-        # Add stretch to fill remaining space and prevent empty area at bottom
-        layout.addStretch()
+        track_column.addStretch()
+        layout.addLayout(track_column)
     
     def _update_data(self):
         """Update game state display."""
