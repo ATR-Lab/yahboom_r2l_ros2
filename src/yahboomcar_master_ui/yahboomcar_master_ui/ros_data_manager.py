@@ -277,3 +277,115 @@ class RosDataManager:
     def get_system_uptime(self) -> float:
         """Get system uptime in seconds."""
         return time.time() - self.system_start_time
+    
+    # =============================================================================
+    # DUMMY DATA FUNCTIONS - Replace with actual ROS2 data integration
+    # =============================================================================
+    
+    def get_race_data(self) -> dict:
+        """Get current race data - TODO: Replace with ROS2 /race/status topic"""
+        import random
+        race_time_seconds = int(time.time() - self.system_start_time)
+        minutes = race_time_seconds // 60
+        seconds = race_time_seconds % 60
+        
+        return {
+            'race_time': f"{minutes:02d}:{seconds:02d}",
+            'current_lap': random.randint(1, 3),
+            'total_laps': 5,
+            'race_active': True
+        }
+    
+    def get_leaderboard_data(self) -> dict:
+        """Get race leaderboard - TODO: Replace with ROS2 /race/leaderboard topic"""
+        import random
+        leader_id = random.choice([1, 2, 3, 4])
+        car_names = {1: "Lightning", 2: "Thunder", 3: "Storm", 4: "Blitz"}
+        return {
+            'leader_car_id': leader_id,
+            'leader_car_name': car_names.get(leader_id, f"Car #{leader_id}")
+        }
+    
+    def get_environment_data(self) -> dict:
+        """Get environmental data - TODO: Replace with ROS2 /environment/* topics"""
+        import random
+        weather_conditions = ["Clear, Dry", "Partly Cloudy", "Overcast", "Light Rain"]
+        temperatures = ["18°C Cool", "22°C Optimal", "26°C Warm", "30°C Hot"]
+        
+        return {
+            'weather': random.choice(weather_conditions),
+            'temperature': random.choice(temperatures)
+        }
+    
+    def get_network_status(self) -> dict:
+        """Get network connectivity - TODO: Replace with ROS2 /system/network_status topic"""
+        return {
+            'connected': True,
+            'quality': 'Good',
+            'latency_ms': 45
+        }
+    
+    def get_car_configuration(self) -> list:
+        """Get dynamic car configuration - TODO: Replace with ROS2 /fleet/configuration topic"""
+        return [
+            {"id": 1, "name": "Lightning", "color": "#ff6b6b", "active": True},
+            {"id": 2, "name": "Thunder", "color": "#4ecdc4", "active": True},
+            {"id": 3, "name": "Storm", "color": "#45b7d1", "active": True},
+            {"id": 4, "name": "Blitz", "color": "#f9ca24", "active": False}
+        ]
+    
+    # =============================================================================
+    # DUMMY ROS2 CALLBACK STUBS - Replace with actual ROS2 service calls
+    # =============================================================================
+    
+    def set_global_speed_limit(self, limit_percent: int):
+        """Set global speed limit - TODO: Publish to /system/speed_limit_override"""
+        self.node.get_logger().info(f"DUMMY: Setting global speed limit to {limit_percent}%")
+        # TODO: self.speed_limit_publisher.publish(Int32(data=limit_percent))
+    
+    def start_race(self):
+        """Start race - TODO: Call ROS2 service /race/start_race"""
+        self.node.get_logger().info("DUMMY: Starting race")
+        # TODO: self.start_race_client.call_async(StartRace.Request())
+    
+    def stop_race(self):
+        """Stop race - TODO: Call ROS2 service /race/stop_race"""
+        self.node.get_logger().info("DUMMY: Stopping race")
+        # TODO: self.stop_race_client.call_async(StopRace.Request())
+    
+    def reset_race(self):
+        """Reset race - TODO: Call ROS2 service /race/reset_race"""
+        self.node.get_logger().info("DUMMY: Resetting race")
+        # TODO: self.reset_race_client.call_async(ResetRace.Request())
+    
+    def call_car_diagnostics(self, car_id: int):
+        """Run car diagnostics - TODO: Call ROS2 service /car_X/run_diagnostics"""
+        self.node.get_logger().info(f"DUMMY: Running diagnostics for car {car_id}")
+        # TODO: service_name = f"/car_{car_id}/run_diagnostics"
+        # TODO: self.diagnostics_clients[car_id].call_async(RunDiagnostics.Request())
+    
+    def call_car_reset_system(self, car_id: int):
+        """Reset car system - TODO: Call ROS2 service /car_X/reset_system"""
+        self.node.get_logger().info(f"DUMMY: Resetting system for car {car_id}")
+        # TODO: service_name = f"/car_{car_id}/reset_system"  
+        # TODO: self.reset_system_clients[car_id].call_async(ResetSystem.Request())
+        
+        # Update local state for UI feedback
+        if car_id in self.cars:
+            self.cars[car_id].emergency_stopped = False
+            self.cars[car_id].control_mode = "RACING"
+    
+    def publish_manual_speed_limit(self, car_id: int, limit_percent: int):
+        """Publish manual speed limit - TODO: Publish to /car_X/speed_limit"""
+        self.node.get_logger().info(f"DUMMY: Setting speed limit for car {car_id} to {limit_percent}%")
+        # TODO: topic_name = f"/car_{car_id}/speed_limit"
+        # TODO: self.speed_limit_publishers[car_id].publish(Int32(data=limit_percent))
+    
+    def log_user_action(self, action: str, details: str = ""):
+        """Log user action - TODO: Publish to /system/user_actions topic"""
+        timestamp = time.strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] USER: {action}"
+        if details:
+            log_entry += f" - {details}"
+        self.node.get_logger().info(f"DUMMY: {log_entry}")
+        # TODO: self.user_actions_publisher.publish(String(data=log_entry))

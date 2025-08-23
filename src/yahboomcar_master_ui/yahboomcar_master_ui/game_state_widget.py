@@ -76,6 +76,19 @@ class GameStateWidget(QWidget):
         layout.addLayout(track_column)
     
     def _update_data(self):
-        """Update game state display."""
-        # This is placeholder data - in Phase 3, this will connect to real game state
-        pass
+        """Update game state display with dummy data functions."""
+        # TODO: Replace these with actual ROS2 topic subscriptions
+        
+        # Update race status from dummy data
+        race_data = self.data_manager.get_race_data()
+        self.race_time_label.setText(f"⏱️ Race Time: {race_data['race_time']}")
+        self.lap_label.setText(f"🏁 Lap: {race_data['current_lap']}/{race_data['total_laps']}")
+        
+        # Update leader from dummy data  
+        leader_data = self.data_manager.get_leaderboard_data()
+        self.leader_label.setText(f"🥇 Leader: {leader_data['leader_car_name']}")
+        
+        # Update environmental data from dummy functions
+        env_data = self.data_manager.get_environment_data()
+        self.weather_label.setText(f"☀️ {env_data['weather']}")
+        self.temperature_label.setText(f"🌡️ {env_data['temperature']}")

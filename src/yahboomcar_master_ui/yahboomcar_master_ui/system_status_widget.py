@@ -45,8 +45,8 @@ class SystemStatusWidget(QWidget):
         self.uptime_label = QLabel("Uptime: 00:00:00")
         layout.addWidget(self.uptime_label)
         
-        # Network status
-        self.network_label = QLabel("Network: 🟢 Connected")
+        # Network status - will be updated with dummy data
+        self.network_label = QLabel("Network: 🟡 Checking...")
         layout.addWidget(self.network_label)
         
         # Joystick status
@@ -69,6 +69,16 @@ class SystemStatusWidget(QWidget):
         minutes = (uptime_seconds % 3600) // 60
         seconds = uptime_seconds % 60
         self.uptime_label.setText(f"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}")
+        
+        # Update network status from dummy data
+        # TODO: Replace with actual ROS2 /system/network_status topic
+        network_data = self.data_manager.get_network_status()
+        if network_data['connected']:
+            quality = network_data.get('quality', 'Unknown')
+            latency = network_data.get('latency_ms', 0)
+            self.network_label.setText(f"Network: 🟢 {quality} ({latency}ms)")
+        else:
+            self.network_label.setText("Network: 🔴 Disconnected")
         
         # Update joystick status
         if self.data_manager.is_joystick_connected():

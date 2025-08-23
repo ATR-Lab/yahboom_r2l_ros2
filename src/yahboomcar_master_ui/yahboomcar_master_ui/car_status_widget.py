@@ -197,6 +197,7 @@ class CarStatusWidget(QWidget):
                 border-radius: 3px;
             }
         """)
+        self.details_button.clicked.connect(self._show_car_details)
         actions_layout.addWidget(self.details_button)
         
         layout.addLayout(actions_layout)
@@ -315,5 +316,24 @@ class CarStatusWidget(QWidget):
             self.data_manager.set_manual_control(self.car_id, True)
     
     def _reset_car(self):
-        """Reset car from emergency stop."""
+        """Reset car from emergency stop - Enhanced with ROS2 service call."""
+        # Log the user action
+        self.data_manager.log_user_action(f"Reset car #{self.car_id}", f"Car: {self.car_name}")
+        
+        # Call dummy ROS2 service (will be replaced with actual service call)
+        self.data_manager.call_car_reset_system(self.car_id)
+        
+        # Also call the existing data manager method for UI state
         self.data_manager.reset_car(self.car_id)
+    
+    def _show_car_details(self):
+        """Show detailed car diagnostics - TODO: Create detailed panel/popup"""
+        # Log the user action
+        self.data_manager.log_user_action(f"View details for car #{self.car_id}", f"Car: {self.car_name}")
+        
+        # Call dummy ROS2 diagnostics service
+        self.data_manager.call_car_diagnostics(self.car_id)
+        
+        # TODO: Open detailed diagnostics panel/popup window
+        # For now, just log the action
+        print(f"DUMMY: Opening detailed view for Car #{self.car_id} '{self.car_name}'")

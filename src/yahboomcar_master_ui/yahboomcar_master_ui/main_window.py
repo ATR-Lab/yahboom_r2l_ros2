@@ -80,11 +80,12 @@ class MasterControlWindow(QMainWindow):
         
         layout = QHBoxLayout(menu_frame)
         
-        # Menu buttons
+        # Menu buttons with dummy callbacks
         buttons = ["System Overview", "Race Control", "Manual Control", "Settings", "Alerts"]
         for button_text in buttons:
             btn = QPushButton(button_text)
             btn.setStyleSheet("QPushButton { background-color: #404040; border: 1px solid #666; padding: 8px 16px; }")
+            btn.clicked.connect(lambda checked, menu=button_text: self._on_menu_button_clicked(menu))
             layout.addWidget(btn)
         
         layout.addStretch()
@@ -207,8 +208,60 @@ class MasterControlWindow(QMainWindow):
     
     def _emergency_stop_all(self):
         """Emergency stop all cars."""
+        # Log the critical user action
+        self.data_manager.log_user_action("EMERGENCY ALL STOP", "All cars emergency stopped")
+        
+        # Call existing emergency stop functionality
         self.data_manager.emergency_stop_all()
-        # Show confirmation dialog or status update
+        # TODO: Show confirmation dialog or status update
+    
+    def _on_menu_button_clicked(self, menu_type: str):
+        """Handle menu button clicks - TODO: Implement panel navigation"""
+        # Log the user action
+        self.data_manager.log_user_action(f"Menu: {menu_type} clicked")
+        
+        # TODO: Implement actual panel switching logic
+        if menu_type == "Race Control":
+            self._show_race_control_panel()
+        elif menu_type == "Settings":
+            self._show_settings_panel()
+        elif menu_type == "Alerts":
+            self._show_alerts_panel()
+        else:
+            print(f"DUMMY: Menu '{menu_type}' clicked - panel switching not implemented yet")
+    
+    def _show_race_control_panel(self):
+        """Show race control panel - TODO: Implement race management UI"""
+        print("DUMMY: Race Control Panel - Start/Stop/Reset race functionality")
+        
+        # Example of how race control might work:
+        race_data = self.data_manager.get_race_data()
+        if race_data['race_active']:
+            print("Race is active - offering stop/pause options")
+            # TODO: Show race control dialog with Stop/Pause/Reset buttons
+        else:
+            print("No active race - offering start race options")
+            # TODO: Show start race dialog with configuration options
+    
+    def _show_settings_panel(self):
+        """Show settings panel - TODO: Implement system configuration UI"""
+        print("DUMMY: Settings Panel - System configuration options")
+        
+        # TODO: Show settings dialog with:
+        # - Car configuration (names, colors, active status)
+        # - Speed limits and safety parameters
+        # - Network and connection settings
+        # - Display and UI preferences
+    
+    def _show_alerts_panel(self):
+        """Show alerts panel - TODO: Implement system alerts/warnings UI"""
+        print("DUMMY: Alerts Panel - System warnings and notifications")
+        
+        # TODO: Show alerts panel with:
+        # - Active system warnings
+        # - Car-specific alerts
+        # - Network/connectivity issues
+        # - Battery warnings and maintenance alerts
     
     def _get_dark_theme_style(self):
         """Return dark theme stylesheet."""

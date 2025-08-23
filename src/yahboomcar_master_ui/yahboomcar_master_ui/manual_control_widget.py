@@ -51,9 +51,10 @@ class ManualControlWidget(QWidget):
         car_grid = QGridLayout()
         self.car_buttons = {}
         
-        car_configs = [
-            (1, "Car1"), (2, "Car2"), (3, "Car3"), (4, "Car4")
-        ]
+        # Get dynamic car configuration from data manager
+        # TODO: This will be updated from ROS2 /fleet/configuration topic
+        car_config_data = self.data_manager.get_car_configuration()
+        car_configs = [(car['id'], car['name']) for car in car_config_data if car['active']]
         
         for i, (car_id, name) in enumerate(car_configs):
             btn = QPushButton(name)
@@ -93,9 +94,7 @@ class ManualControlWidget(QWidget):
         self.speed_label = QLabel("40%")
         speed_layout.addWidget(self.speed_label)
         
-        self.speed_slider.valueChanged.connect(
-            lambda v: self.speed_label.setText(f"{v}%")
-        )
+        self.speed_slider.valueChanged.connect(self._on_speed_limit_changed)
         
         layout.addLayout(speed_layout)
         
@@ -169,3 +168,16 @@ class ManualControlWidget(QWidget):
                 self.active_label.setText(f"Active: Car #{selected_car} \"{car_data.name}\"")
         else:
             self.active_label.setText("Active: None")
+    
+    def _on_speed_limit_changed(self, value: int):
+        """Handle speed limit slider change - TODO: Publish to ROS2"""
+        self.speed_label.setText(f"{value}%")
+        
+        # Log the change and call dummy ROS2 function
+        self.data_manager.log_user_action(f"Speed limit changed to {value}%")
+        self.data_manager.set_global_speed_limit(value)
+        
+        # If a car is selected, also set individual car limit
+        selected_car = self.data_manager.selected_car_id
+        if selected_car:
+            self.data_manager.publish_manual_speed_limit(selected_car, value)
