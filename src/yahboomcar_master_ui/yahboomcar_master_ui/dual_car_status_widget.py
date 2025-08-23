@@ -27,10 +27,11 @@ class SingleCarSection(QWidget):
     
     def _init_ui(self):
         """Initialize the single car section UI."""
-        # Set object name and apply car color as border to container only
-        self.setObjectName("car_section")
-        self.setStyleSheet(f"""
-            QWidget#car_section {{
+        # Create QFrame container with colored border
+        container_frame = QFrame()
+        container_frame.setObjectName("car_container")
+        container_frame.setStyleSheet(f"""
+            QFrame#car_container {{
                 border: 2px solid {self.car_color};
                 border-radius: 8px;
                 background-color: #2b2b2b;
@@ -38,7 +39,13 @@ class SingleCarSection(QWidget):
             }}
         """)
         
-        layout = QVBoxLayout(self)
+        # Main widget layout contains just the frame
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(container_frame)
+        
+        # All content goes inside the frame
+        layout = QVBoxLayout(container_frame)
         layout.setSpacing(4)
         layout.setContentsMargins(8, 8, 8, 8)
         
