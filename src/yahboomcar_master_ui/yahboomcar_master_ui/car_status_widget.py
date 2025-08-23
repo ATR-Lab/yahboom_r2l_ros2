@@ -20,6 +20,7 @@ class CarStatusWidget(QWidget):
         self.car_id = car_config["id"]
         self.car_name = car_config["name"]
         self.car_color = car_config["color"]
+        self.car_active = car_config["active"]
         self.data_manager = data_manager
         
         self.setFixedSize(300, 200)
@@ -201,6 +202,11 @@ class CarStatusWidget(QWidget):
         actions_layout.addWidget(self.details_button)
         
         layout.addLayout(actions_layout)
+        
+        # Add inactive overlay if car is not active
+        self.inactive_overlay = None
+        if not self.car_active:
+            self._create_inactive_overlay()
     
     def _create_status_indicator(self, name, initial_status):
         """Create a connection status indicator."""
@@ -337,3 +343,23 @@ class CarStatusWidget(QWidget):
         # TODO: Open detailed diagnostics panel/popup window
         # For now, just log the action
         print(f"DUMMY: Opening detailed view for Car #{self.car_id} '{self.car_name}'")
+    
+    def _create_inactive_overlay(self):
+        """Create semi-transparent overlay for inactive car."""
+        self.inactive_overlay = QWidget(self)
+        self.inactive_overlay.setStyleSheet("""
+            QWidget {
+                background-color: rgba(40, 40, 40, 0.8);
+                border-radius: 8px;
+            }
+        """)
+        # Block mouse events to prevent interaction
+        self.inactive_overlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.inactive_overlay.resize(self.size())
+        self.inactive_overlay.show()
+    
+    def resizeEvent(self, event):
+        """Handle resize events to keep overlay properly sized."""
+        super().resizeEvent(event)
+        if self.inactive_overlay:
+            self.inactive_overlay.resize(self.size())

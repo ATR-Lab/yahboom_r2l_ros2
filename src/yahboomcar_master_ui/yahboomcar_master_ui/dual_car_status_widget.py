@@ -20,6 +20,7 @@ class SingleCarSection(QWidget):
         self.car_id = car_config["id"]
         self.car_name = car_config["name"]
         self.car_color = car_config["color"]
+        self.car_active = car_config["active"]
         self.data_manager = data_manager
         
         self.setMinimumWidth(240)  # Each car gets more width than before
@@ -204,6 +205,14 @@ class SingleCarSection(QWidget):
         actions_layout.addWidget(self.details_button)
         
         layout.addLayout(actions_layout)
+        
+        # Store reference to container frame for overlay
+        self.container_frame = container_frame
+        
+        # Add inactive overlay if car is not active
+        self.inactive_overlay = None
+        if not self.car_active:
+            self._create_inactive_overlay()
     
     def _create_status_indicator(self, name, initial_status):
         """Create a connection status indicator with full name."""
@@ -336,6 +345,25 @@ class SingleCarSection(QWidget):
         # TODO: Open detailed diagnostics panel/popup window
         # For now, just log the action
         print(f"DUMMY: Opening detailed view for Car #{self.car_id} '{self.car_name}'")
+    
+    def _create_inactive_overlay(self):
+        """Create semi-transparent overlay for inactive car."""
+        self.inactive_overlay = QWidget(self.container_frame)
+        self.inactive_overlay.setStyleSheet("""
+            QWidget {
+                background-color: rgba(40, 40, 40, 0.8);
+                border-radius: 8px;
+            }
+        """)
+        # Block mouse events to prevent interaction
+        self.inactive_overlay.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.inactive_overlay.show()
+    
+    def resizeEvent(self, event):
+        """Handle resize events to keep overlay properly sized."""
+        super().resizeEvent(event)
+        if self.inactive_overlay and hasattr(self, 'container_frame'):
+            self.inactive_overlay.resize(self.container_frame.size())
 
 
 class DualCarStatusWidget(QWidget):
