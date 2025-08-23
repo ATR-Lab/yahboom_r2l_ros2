@@ -133,13 +133,9 @@ class MasterControlWindow(QMainWindow):
         car_layout = QVBoxLayout(car_grid)
         car_layout.setSpacing(8)
         
-        # Create car configurations
-        car_configs = [
-            {"id": 1, "name": "Lightning", "color": "#ff6b6b"},
-            {"id": 2, "name": "Thunder", "color": "#4ecdc4"},
-            {"id": 3, "name": "Storm", "color": "#45b7d1"},
-            {"id": 4, "name": "Blitz", "color": "#f9ca24"}
-        ]
+        # Get dynamic car configurations from data manager
+        # TODO: This will be updated from ROS2 /fleet/configuration topic
+        car_configs = self.data_manager.get_car_configuration()
         
         # Create two dual car cards
         dual_card_1 = DualCarStatusWidget([car_configs[0], car_configs[1]], self.data_manager)

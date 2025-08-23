@@ -54,22 +54,34 @@ class ManualControlWidget(QWidget):
         # Get dynamic car configuration from data manager
         # TODO: This will be updated from ROS2 /fleet/configuration topic
         car_config_data = self.data_manager.get_car_configuration()
-        car_configs = [(car['id'], car['name']) for car in car_config_data if car['active']]
         
-        for i, (car_id, name) in enumerate(car_configs):
-            btn = QPushButton(name)
-            btn.setFixedSize(60, 30)
+        for i, car_config in enumerate(car_config_data):
+            car_id = car_config['id']
+            car_name = car_config['name']
+            car_active = car_config['active']
+            
+            # Button text includes car number and name
+            btn_text = f"Car{car_id}\n{car_name}"
+            btn = QPushButton(btn_text)
+            btn.setFixedSize(80, 35)  # Increased size for better text fit
             btn.setCheckable(True)
+            btn.setEnabled(car_active)  # Disable if car is not active
             btn.clicked.connect(lambda checked, cid=car_id: self._select_car(cid))
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: #404040;
                     border: 1px solid #666;
                     border-radius: 3px;
+                    font-size: 9px;
                 }
                 QPushButton:checked {
                     background-color: #0066cc;
                     color: white;
+                }
+                QPushButton:disabled {
+                    background-color: #2a2a2a;
+                    color: #666;
+                    border: 1px solid #444;
                 }
             """)
             self.car_buttons[car_id] = btn
@@ -128,6 +140,10 @@ class ManualControlWidget(QWidget):
     
     def _select_car(self, car_id):
         """Select a car for manual control."""
+        # Check if the car button is enabled (active)
+        if not self.car_buttons[car_id].isEnabled():
+            return  # Don't allow selection of inactive cars
+        
         # Uncheck all other buttons
         for cid, btn in self.car_buttons.items():
             if cid != car_id:
@@ -136,8 +152,10 @@ class ManualControlWidget(QWidget):
         # Set manual control
         if self.car_buttons[car_id].isChecked():
             self.data_manager.set_manual_control(car_id, True)
+            self.data_manager.log_user_action(f"Manual control activated", f"Car #{car_id}")
         else:
             self.data_manager.set_manual_control(car_id, False)
+            self.data_manager.log_user_action(f"Manual control released", f"Car #{car_id}")
     
     def _emergency_stop_selected(self):
         """Emergency stop the selected car."""
