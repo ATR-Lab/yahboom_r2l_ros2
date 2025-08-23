@@ -70,7 +70,7 @@ class MasterControlWindow(QMainWindow):
         main_layout.addWidget(bottom_widget)
         
         # Set splitter proportions - more space for left panel with dual cards
-        content_splitter.setSizes([1100, 500])
+        content_splitter.setSizes([800, 800])
         
     def _create_menu_bar(self):
         """Create the top menu bar with emergency controls."""
