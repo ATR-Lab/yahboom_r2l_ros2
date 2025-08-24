@@ -11,6 +11,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QPalette, QPainter, QTransform
 
+from .car_details.detail_dialog import CarDetailDialog
+
 
 class RotatedLabel(QWidget):
     """Custom widget that can display rotated text without borders."""
@@ -399,16 +401,13 @@ class SingleCarSection(QWidget):
         self.data_manager.reset_car(self.car_id)
     
     def _show_car_details(self):
-        """Show detailed car diagnostics - TODO: Create detailed panel/popup"""
+        """Show detailed car diagnostics popup dialog."""
         # Log the user action
         self.data_manager.log_user_action(f"View details for car #{self.car_id}", f"Car: {self.car_name}")
         
-        # Call dummy ROS2 diagnostics service
-        self.data_manager.call_car_diagnostics(self.car_id)
-        
-        # TODO: Open detailed diagnostics panel/popup window
-        # For now, just log the action
-        print(f"DUMMY: Opening detailed view for Car #{self.car_id} '{self.car_name}'")
+        # Open the car detail dialog
+        dialog = CarDetailDialog(self.car_id, self.data_manager, self)
+        dialog.exec_()
     
     def _create_inactive_overlay(self):
         """Create semi-transparent overlay for inactive car."""

@@ -381,6 +381,17 @@ class RosDataManager:
         # TODO: topic_name = f"/car_{car_id}/speed_limit"
         # TODO: self.speed_limit_publishers[car_id].publish(Int32(data=limit_percent))
     
+    def set_car_parameter(self, car_id: int, param_name: str, value):
+        """Set a car-specific parameter - TODO: Use ROS2 parameter services"""
+        # TODO: Call ROS2 parameter service for the specific car
+        # service_name = f"/car_{car_id}/set_parameter" 
+        # param_request = SetParameters.Request()
+        # param_request.parameters = [Parameter(name=param_name, value=value)]
+        # self.param_clients[car_id].call_async(param_request)
+        
+        # Log the parameter change
+        self.log_user_action(f"Parameter '{param_name}' set to {value}", f"Car #{car_id}")
+
     def log_user_action(self, action: str, details: str = ""):
         """Log user action - TODO: Publish to /system/user_actions topic"""
         timestamp = time.strftime("%H:%M:%S")
