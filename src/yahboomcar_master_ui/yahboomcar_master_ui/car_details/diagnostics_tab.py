@@ -22,7 +22,7 @@ class DiagnosticsTab(QWidget):
     def _init_ui(self):
         """Initialize the diagnostics tab UI."""
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
+        layout.setSpacing(15)
         
         # Top row: Battery and Performance
         top_layout = QHBoxLayout()
@@ -94,6 +94,7 @@ class DiagnosticsTab(QWidget):
         group = QGroupBox("🏎️ Performance Metrics")
         group.setStyleSheet("QGroupBox { font-weight: bold; }")
         layout = QVBoxLayout(group)
+        layout.setSpacing(8)  # Add proper spacing between labels
         
         # Current speed and position
         self.speed_label = QLabel("Speed: 1.2 m/s")
@@ -107,7 +108,7 @@ class DiagnosticsTab(QWidget):
         
         for label in [self.speed_label, self.position_label, self.heading_label,
                      self.uptime_label, self.commands_label, self.latency_label]:
-            label.setStyleSheet("font-size: 12px; margin: 2px;")
+            label.setStyleSheet("font-size: 12px; color: white;")
             layout.addWidget(label)
         
         return group
@@ -195,13 +196,15 @@ class DiagnosticsTab(QWidget):
             layout.addWidget(label)
         
         # Run diagnostics button
-        diag_btn = QPushButton("🔍 Run Full Diagnostics")
+        diag_btn = QPushButton("🔍 Run Diagnostics")
+        diag_btn.setFixedHeight(35)
         diag_btn.setStyleSheet("""
             QPushButton {
                 background-color: #0066cc;
                 color: white;
                 padding: 8px;
                 border-radius: 3px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #0080ff;

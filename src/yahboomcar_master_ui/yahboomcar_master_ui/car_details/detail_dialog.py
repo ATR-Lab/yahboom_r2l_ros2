@@ -33,7 +33,7 @@ class CarDetailDialog(QDialog):
         
         self.setModal(True)
         self.setWindowTitle(f"🚗 Car #{car_id} Details - {self.car_config['name']}")
-        self.setFixedSize(800, 600)
+        self.setFixedSize(800, 700)
         self.setStyleSheet(self._get_dialog_style())
         
         self._init_ui()
