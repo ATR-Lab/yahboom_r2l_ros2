@@ -53,6 +53,7 @@ install(DIRECTORY include/
 # Install Python scripts
 install(PROGRAMS
   scripts/mcnamu_driver.py
+  scripts/mcnamu_driver_sim.py
   scripts/calibrate_angular.py
   scripts/calibrate_linear.py
   scripts/transform_utils.py

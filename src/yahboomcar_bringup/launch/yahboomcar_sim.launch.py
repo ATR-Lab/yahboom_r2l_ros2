@@ -26,10 +26,10 @@ def generate_launch_description():
     # Create namespace from car_id
     namespace = ['/car_', car_id]
 
-    # Hardware driver node
+    # Simulation hardware driver node
     mcnamu_driver_node = Node(
         package='yahboomcar_bringup',
-        executable='mcnamu_driver.py',
+        executable='mcnamu_driver_sim.py',
         name='driver_node',
         namespace=namespace,
         output='screen',
@@ -48,15 +48,6 @@ def generate_launch_description():
             ('joint_states', 'joint_states') # /car_X/joint_states (joint position data)
         ]
     )
-
-    # Note: Warning node was commented out in original launch file
-    # warning_node = Node(
-    #     package='yahboomcar_bringup',
-    #     executable='warning.py',
-    #     name='warning',
-    #     output='screen'
-    #     # TODO: Add condition for robot_type != 'R2'
-    # )
 
     return LaunchDescription([
         robot_type_arg,
