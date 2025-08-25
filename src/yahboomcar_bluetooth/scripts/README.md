@@ -14,9 +14,17 @@ pip install -r bluetooth_requirements.txt
 python3 ble_server.py
 ```
 
-### 3. Test with Mobile Device
+### 3. Test the Server
+Choose one of these testing approaches:
+
+#### Option A: Automated Test (Recommended)
+```bash
+python3 ble_client_test.py
+```
+
+#### Option B: Mobile Device Testing
 - Download a BLE scanner app (nRF Connect, LightBlue Explorer)
-- Look for "YahboomRobot" device
+- Look for "YahboomRobot" device  
 - Connect and explore the custom service
 
 ## 📁 Files in this Directory
@@ -27,6 +35,12 @@ python3 ble_server.py
   - Advertises as "YahboomRobot"
   - JSON-based status data and message handling
   - Comprehensive logging and error handling
+
+- **`ble_client_test.py`** - Automated test client ⭐
+  - Comprehensive server validation
+  - Device discovery and connection testing
+  - Read/write operation validation  
+  - Clear pass/fail reporting
 
 ### 📦 Dependencies & Setup
 - **`bluetooth_requirements.txt`** - Python dependencies with tested versions
