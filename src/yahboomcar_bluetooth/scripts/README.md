@@ -79,7 +79,42 @@ python3 ble_client_test.py
 }
 ```
 
-## 📱 Testing the BLE Server
+## 🧪 Testing the BLE Server
+
+### Automated Testing (Recommended)
+
+The **`ble_client_test.py`** provides comprehensive automated testing:
+
+```bash
+# Terminal 1: Start server
+python3 ble_server.py
+
+# Terminal 2: Run automated test
+python3 ble_client_test.py
+```
+
+**Test Coverage:**
+- ✅ **Device Discovery** - Finds "YahboomRobot" in BLE scan
+- ✅ **Connection** - Establishes BLE connection
+- ✅ **Service Discovery** - Validates service/characteristic UUIDs  
+- ✅ **Read Operations** - Tests JSON status data retrieval
+- ✅ **Write Operations** - Tests bidirectional communication
+- ✅ **Error Handling** - Comprehensive troubleshooting info
+
+**Expected Success Output:**
+```
+🎉 SUCCESS: All tests passed!
+   Your BLE server is working correctly!
+
+🎯 Overall Results: 5/5 tests passed
+
+📊 Individual Test Results:
+   ✅ Device Discovery
+   ✅ Connection
+   ✅ Service Discovery
+   ✅ Read Operation
+   ✅ Write Operation
+```
 
 ### Mobile Apps for Testing
 | Platform | Recommended App | Developer |
