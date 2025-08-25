@@ -36,6 +36,9 @@ Conversation Commands Tested:
 
 Perfect for validating Unity mobile app communication readiness!
 
+Uses write-with-response (response=True) to ensure server callbacks are triggered,
+enabling full bidirectional messaging capability for racing control applications.
+
 Author: Yahboom Robot Bluetooth Team
 """
 
@@ -612,7 +615,7 @@ class YahboomBLEClientTest:
             
             # Write to status characteristic (server should log this)
             message_bytes = test_message.encode('utf-8')
-            await self.client.write_gatt_char(STATUS_CHAR_UUID, message_bytes, response=False)
+            await self.client.write_gatt_char(STATUS_CHAR_UUID, message_bytes, response=True)
             
             print("✅ Write operation completed")
             print("📝 Check server logs to verify message was received")
@@ -658,7 +661,7 @@ class YahboomBLEClientTest:
                 try:
                     # Step 1: Send command via write
                     print(f"   📤 Sending command: '{command}'")
-                    await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=False)
+                    await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=True)
                     
                     # Brief delay to let server process
                     await asyncio.sleep(0.3)
