@@ -36,8 +36,9 @@ Install required Python packages:
 # Serial communication for hardware interface
 pip3 install pyserial
 
-# Bluetooth LE server for iPhone AR app communication
-pip3 install bluez-peripheral
+# Bluetooth LE server for iPhone AR app communication  
+# Note: Use requirements.txt for tested versions and BlueZ compatibility
+pip3 install -r src/yahboomcar_bluetooth/scripts/bluetooth_requirements.txt
 ```
 
 ### System Dependencies for Bluetooth
@@ -207,13 +208,14 @@ ros2 launch yahboomcar_bringup yahboomcar_sim.launch.py car_id:=4
 
 #### **Bluetooth Bridge for iPhone AR App** (Run on each robot):
 ```bash
-# Launch Bluetooth bridge for Car 1
+# Ubuntu/macOS (BlueZ 5.64+):
 ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
 
-# Launch Bluetooth bridge for Car 2  
-ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2
+# Jetson Nano (BlueZ 5.53 - requires compatibility mode):
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
 
-# And so on for each robot...
+# For multiple cars, repeat with different car_id values
+# Car 2, Car 3, etc. using same BlueZ compatibility approach
 ```
 
 **BLE Server Details:**
@@ -226,8 +228,11 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2
 
 **Testing BLE Server:**
 ```bash
-# Launch Bluetooth bridge (run with robot simulation)
+# Ubuntu/macOS (BlueZ 5.64+):
 ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+
+# Jetson Nano (BlueZ 5.53):
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
 
 # Expected successful output:
 # [INFO] [...]: 📡 Advertisement registered successfully
@@ -235,8 +240,13 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
 # [INFO] [...]: 📱 Device: YahboomRacer_Car1
 # [INFO] [...]: 💡 Ready for iPhone AR app connections!
 
+# Alternative: Direct script testing (for development)
+cd src/yahboomcar_bluetooth/scripts/
+# Ubuntu/macOS: python3 ble_server.py
+# Jetson Nano: python3 ble_server.py --jetson
+
 # Test with iPhone nRF Connect app or similar BLE scanner
-# Should see "YahboomRacer_Car1" in available devices
+# Should see "YahboomRacer_Car1" or "YahboomRobot" in available devices
 ```
 
 #### **Master Control Center** (Run on control station):
@@ -390,6 +400,24 @@ lsusb | grep -i bluetooth
 hciconfig -a
 
 # If no Bluetooth adapter found, may need USB Bluetooth dongle
+```
+
+**BlueZ Version Compatibility Issues**
+```bash
+# Error: "CBATTErrorDomain Code=14 'Unlikely error.'" on macOS/iOS clients
+# Cause: BlueZ version differences between Jetson Nano and Ubuntu
+
+# Solution: Use Jetson compatibility mode
+# On Jetson Nano server:
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
+
+# Or direct script with compatibility flag:
+python3 ble_server.py --jetson
+
+# Technical details:
+# - Jetson Nano (Ubuntu 20.04): BlueZ 5.53 - requires write_without_response
+# - Ubuntu 22.04+: BlueZ 5.64+ - supports write_with_response automatically
+# - jetson_mode:=true enables dual-mode characteristic properties for compatibility
 ```
 
 ## Robot Control System
@@ -559,8 +587,9 @@ groups $USER | grep bluetooth  # Should show bluetooth group
 git clone <your-repo-url> yahboom_r2l_ros2
 cd yahboom_r2l_ros2
 
-# 2. Install Python dependencies
-pip3 install pyserial bluez-peripheral
+# 2. Install Python dependencies (use tested versions for BlueZ compatibility)
+pip3 install pyserial
+pip3 install -r src/yahboomcar_bluetooth/scripts/bluetooth_requirements.txt
 
 # 3. Install Yahboom hardware library
 cd /path/to/YahboomR2L/software/py_install
@@ -572,10 +601,15 @@ source /opt/ros/humble/setup.bash
 colcon build
 source install/setup.bash
 
-# 5. Test BLE server (simulation mode)
-ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+# 5. Test BLE server (simulation mode with Jetson compatibility)
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
+
+# Alternative: Direct script testing (with Jetson compatibility flag)
+cd src/yahboomcar_bluetooth/scripts/
+python3 ble_server.py --jetson
 
 # Expected output:
+# [INFO] [...]: ✅ Jetson mode: Added write_without_response compatibility
 # [INFO] [...]: 📡 Advertisement registered successfully
 # [INFO] [...]: 💡 Ready for iPhone AR app connections!
 ```
@@ -586,11 +620,12 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
 export ROBOT_TYPE=R2L
 ros2 launch yahboomcar_bringup bringup.launch.py car_id:=1
 
-# 2. Launch Bluetooth bridge (separate terminal)
-ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+# 2. Launch Bluetooth bridge with Jetson compatibility (separate terminal)
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
 
 # 3. Test iPhone connectivity with nRF Connect or similar app
 # Look for "YahboomRacer_Car1" in BLE device list
+# Should connect without "CBATTErrorDomain Code=14" timeout errors
 ```
 
 ### Jetson Nano Performance Tips
@@ -598,6 +633,7 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
 - **Memory**: Ensure swap is configured for compilation
 - **Power Mode**: Use `MAXN` power mode for best performance
 - **Cooling**: Ensure adequate cooling during racing sessions
+- **BlueZ Compatibility**: Always use `jetson_mode:=true` for BLE functionality
 
 ## Related Documentation
 
