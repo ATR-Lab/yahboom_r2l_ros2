@@ -35,7 +35,55 @@ Install required Python packages:
 ```bash
 # Serial communication for hardware interface
 pip3 install pyserial
+
+# Bluetooth LE server for iPhone AR app communication
+pip3 install bluez-peripheral
 ```
+
+### System Dependencies for Bluetooth
+For Bluetooth LE functionality, ensure BlueZ is installed:
+```bash
+# Install BlueZ (usually pre-installed on Ubuntu)
+sudo apt update
+sudo apt install -y bluez
+
+# Ensure Bluetooth service is running
+sudo systemctl enable bluetooth
+sudo systemctl start bluetooth
+```
+
+### **CRITICAL: Enable BlueZ Experimental Features**
+BLE GATT server functionality (required for robot-to-iPhone communication) is considered "experimental" in BlueZ and **must be explicitly enabled**:
+
+```bash
+# 1. Create backup of bluetooth service file
+sudo cp /lib/systemd/system/bluetooth.service /lib/systemd/system/bluetooth.service.backup
+
+# 2. Add experimental flag (-E) to BlueZ daemon
+sudo sed -i 's|^ExecStart=/usr/lib/bluetooth/bluetoothd$|ExecStart=/usr/lib/bluetooth/bluetoothd -E|' /lib/systemd/system/bluetooth.service
+
+# 3. Verify the change
+grep ExecStart /lib/systemd/system/bluetooth.service
+# Should show: ExecStart=/usr/lib/bluetooth/bluetoothd -E
+
+# 4. Reload and restart Bluetooth service
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+
+# 5. Verify experimental features are enabled
+ps aux | grep bluetoothd
+# Should show: /usr/lib/bluetooth/bluetoothd -E
+
+# 6. Add user to bluetooth group (if not already done)
+sudo usermod -aG bluetooth $USER
+# Log out and back in for group changes to take effect
+```
+
+**⚠️ Important Notes:**
+- **Without the `-E` flag, BLE server functionality will NOT work**
+- This applies to **all Linux systems** including Jetson Nano, Raspberry Pi, etc.
+- The experimental flag is safe and widely used in production IoT devices
+- You may see TxPower D-Bus warnings in logs - these can be safely ignored
 
 ### Hardware Interface Library
 Install the Yahboom hardware library:
@@ -56,6 +104,10 @@ src/
 │   ├── launch/             # Launch files
 │   ├── param/              # Parameter configurations
 │   └── config/             # Additional configurations
+│
+├── yahboomcar_bluetooth/   # iPhone AR app Bluetooth bridge
+│   ├── yahboomcar_bluetooth/ # Python bridge nodes
+│   └── launch/             # Bluetooth launch files
 │
 ├── yahboomcar_ctrl/        # Control interfaces (joystick/keyboard)
 │   └── [TODO: To be migrated]
@@ -153,6 +205,40 @@ ros2 launch yahboomcar_bringup yahboomcar_sim.launch.py car_id:=3
 ros2 launch yahboomcar_bringup yahboomcar_sim.launch.py car_id:=4
 ```
 
+#### **Bluetooth Bridge for iPhone AR App** (Run on each robot):
+```bash
+# Launch Bluetooth bridge for Car 1
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+
+# Launch Bluetooth bridge for Car 2  
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2
+
+# And so on for each robot...
+```
+
+**BLE Server Details:**
+- **Device Names**: Each robot advertises as "YahboomRacer_Car1", "YahboomRacer_Car2", etc.
+- **Service UUID**: `12345678-1234-1234-1234-123456789abc` (racing service)
+- **Command Characteristic**: `87654321-4321-4321-4321-cba987654321` (iPhone → Robot)
+- **Sensor Characteristic**: `11111111-2222-3333-4444-555555555555` (Robot → iPhone)
+- **JSON Protocol**: Commands and sensor data exchanged via newline-delimited JSON
+- **Command Priority**: Bluetooth commands integrate with existing safety system (Emergency > Manual > Bluetooth)
+
+**Testing BLE Server:**
+```bash
+# Launch Bluetooth bridge (run with robot simulation)
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+
+# Expected successful output:
+# [INFO] [...]: 📡 Advertisement registered successfully
+# [INFO] [...]: ✅ BLE server setup complete
+# [INFO] [...]: 📱 Device: YahboomRacer_Car1
+# [INFO] [...]: 💡 Ready for iPhone AR app connections!
+
+# Test with iPhone nRF Connect app or similar BLE scanner
+# Should see "YahboomRacer_Car1" in available devices
+```
+
 #### **Master Control Center** (Run on control station):
 ```bash
 ros2 run yahboomcar_master_ui master_ui
@@ -220,9 +306,11 @@ The system uses the `Rosmaster_Lib` hardware abstraction layer to communicate wi
 - [x] Hardware driver (basic functionality)
 - [x] Launch file infrastructure
 
-### 🚧 In Progress
+### ✅ Completed
 - [x] **Multiplayer racing foundation** (Phase 1 complete)
-- [ ] **Bluetooth-ROS bridge** for AR app integration (Phase 2)
+- [x] **Bluetooth-ROS bridge** for AR app integration (Phase 2 complete)
+
+### 🚧 In Progress  
 - [ ] **Game effects system** for power-ups and collisions (Phase 3)
 - [ ] **Race management system** (Phase 4)
 
@@ -256,6 +344,53 @@ sudo usermod -a -G dialout $USER
 **No hardware connected (testing)**
 - The driver will fail to connect to `/dev/myserial` when no robot is connected
 - This is expected behavior and indicates the software is working correctly
+
+### Bluetooth Issues
+
+**BLE Server Not Working / TxPower Errors**
+```bash
+# Check if BlueZ has experimental features enabled
+ps aux | grep bluetoothd
+# Must show: /usr/lib/bluetooth/bluetoothd -E
+
+# If missing -E flag, enable experimental features:
+sudo sed -i 's|^ExecStart=/usr/lib/bluetooth/bluetoothd$|ExecStart=/usr/lib/bluetooth/bluetoothd -E|' /lib/systemd/system/bluetooth.service
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+```
+
+**Permission Denied / D-Bus Access Issues**
+```bash
+# Add user to bluetooth group
+sudo usermod -aG bluetooth $USER
+# IMPORTANT: Log out and back in for group changes to take effect
+
+# Verify group membership
+groups $USER | grep bluetooth
+```
+
+**BLE Server Process Starts But No Advertisement**
+```bash
+# Check Bluetooth adapter status
+bluetoothctl list
+bluetoothctl show
+
+# Ensure adapter is powered and discoverable
+bluetoothctl power on
+bluetoothctl discoverable on
+```
+
+**Jetson Nano Specific Issues**
+```bash
+# Jetson Nano may need additional Bluetooth packages
+sudo apt install -y bluetooth bluez-tools
+
+# Check if Bluetooth hardware is detected
+lsusb | grep -i bluetooth
+hciconfig -a
+
+# If no Bluetooth adapter found, may need USB Bluetooth dongle
+```
 
 ## Robot Control System
 
@@ -371,6 +506,98 @@ This project follows the ROS2 coding standards and conventions. Key migration pr
 ## License
 
 MIT License - see original Yahboom documentation for hardware-specific licensing.
+
+## Jetson Nano Deployment Guide
+
+This section provides specific instructions for deploying the robot racing system on **NVIDIA Jetson Nano**.
+
+### Jetson Nano Prerequisites
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install ROS2 Humble (if not already installed)
+# Follow: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html
+
+# Install Jetson-specific packages
+sudo apt install -y \
+    bluetooth \
+    bluez \
+    bluez-tools \
+    python3-pip \
+    python3-dev \
+    build-essential
+```
+
+### Bluetooth Setup on Jetson Nano
+```bash
+# 1. Check if Bluetooth is available
+lsusb | grep -i bluetooth
+hciconfig -a
+
+# 2. If no Bluetooth adapter found, install USB Bluetooth dongle
+# Recommended: CSR 4.0 or Intel AX200 based adapters
+
+# 3. Enable BlueZ experimental features (CRITICAL!)
+sudo cp /lib/systemd/system/bluetooth.service /lib/systemd/system/bluetooth.service.backup
+sudo sed -i 's|^ExecStart=/usr/lib/bluetooth/bluetoothd$|ExecStart=/usr/lib/bluetooth/bluetoothd -E|' /lib/systemd/system/bluetooth.service
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+
+# 4. Add user to bluetooth group
+sudo usermod -aG bluetooth $USER
+# Log out and back in
+
+# 5. Verify setup
+ps aux | grep bluetoothd  # Should show: bluetoothd -E
+groups $USER | grep bluetooth  # Should show bluetooth group
+```
+
+### Build and Deploy
+```bash
+# 1. Clone repository on Jetson Nano
+git clone <your-repo-url> yahboom_r2l_ros2
+cd yahboom_r2l_ros2
+
+# 2. Install Python dependencies
+pip3 install pyserial bluez-peripheral
+
+# 3. Install Yahboom hardware library
+cd /path/to/YahboomR2L/software/py_install
+pip3 install -e .
+cd ~/yahboom_r2l_ros2
+
+# 4. Build ROS2 workspace
+source /opt/ros/humble/setup.bash
+colcon build
+source install/setup.bash
+
+# 5. Test BLE server (simulation mode)
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+
+# Expected output:
+# [INFO] [...]: 📡 Advertisement registered successfully
+# [INFO] [...]: 💡 Ready for iPhone AR app connections!
+```
+
+### Production Deployment
+```bash
+# 1. Launch full robot system (with hardware)
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup.launch.py car_id:=1
+
+# 2. Launch Bluetooth bridge (separate terminal)
+ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+
+# 3. Test iPhone connectivity with nRF Connect or similar app
+# Look for "YahboomRacer_Car1" in BLE device list
+```
+
+### Jetson Nano Performance Tips
+- **CPU Governor**: Set to `performance` for racing applications
+- **Memory**: Ensure swap is configured for compilation
+- **Power Mode**: Use `MAXN` power mode for best performance
+- **Cooling**: Ensure adequate cooling during racing sessions
 
 ## Related Documentation
 
