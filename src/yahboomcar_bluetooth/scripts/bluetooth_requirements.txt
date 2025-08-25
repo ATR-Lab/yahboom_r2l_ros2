@@ -1,0 +1,32 @@
+# Yahboom Robot BLE Server Requirements
+# Install with: pip install -r bluetooth_requirements.txt
+
+# =====================================
+# ✅ WORKING BLE SERVER SOLUTION
+# =====================================
+
+# BLE Server (ble_server.py) - REAL BLUETOOTH! ⭐
+bless==0.2.4
+bleak==0.19.5  
+async-timeout==4.0.3
+
+# =====================================
+# 🎯 IMPLEMENTATION NOTES
+# =====================================
+
+# BLE Server Features:
+# - Uses bless 0.2.4 with correct API patterns
+# - Requires read_request_func and write_request_func callbacks
+# - Service creation with custom UUIDs
+# - Successfully advertises as "YahboomRobot" 
+# - Discoverable by mobile BLE scanner apps
+# - JSON-based status data and logging
+# - Handle multiple client connections
+
+# =====================================
+# Built-in Python Modules (No Installation Needed)
+# =====================================
+# - asyncio: Async operations for BLE
+# - json: JSON message formatting
+# - logging: Event logging and file output
+# - datetime: Timestamps and uptime tracking
