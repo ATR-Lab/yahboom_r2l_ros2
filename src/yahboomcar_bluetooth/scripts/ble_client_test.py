@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 """
-BLE Client Test for Yahboom Robot BLE Server
-============================================
+Intelligent BLE Client Test for Yahboom Robot - Bidirectional Messaging
+=======================================================================
 
-A comprehensive test client that validates the Yahboom BLE server functionality.
-This script discovers, connects to, and tests communication with the BLE server.
+A comprehensive test client that validates full bidirectional messaging capabilities
+of the Yahboom BLE server. This script tests intelligent conversation features,
+command processing, and response validation for Unity mobile app integration.
 
 Requirements:
     pip install -r bluetooth_requirements.txt
@@ -13,13 +14,27 @@ Requirements:
 Usage:
     python3 ble_client_test.py
 
-Features:
-    - Automatic device discovery
+Test Coverage:
+    - Automatic device discovery with pattern matching
     - Service and characteristic validation
-    - Read/write operation testing
+    - Basic read/write operation testing
+    - ⭐ INTELLIGENT CONVERSATION TESTING ⭐
+    - Command-response validation (ping, status, movement, sensors)
+    - Racing control commands (emergency_stop, speed control)
     - JSON data parsing and validation
-    - Comprehensive error handling
-    - Clear pass/fail reporting
+    - Conversation state tracking
+    - Comprehensive error handling and reporting
+
+Conversation Commands Tested:
+    - ping → pong (round tracking)
+    - hello → greeting response
+    - status → detailed robot status
+    - move_forward → movement acknowledgment
+    - get_sensors → sensor data simulation
+    - speed 75 → speed confirmation
+    - emergency_stop → critical stop acknowledgment
+
+Perfect for validating Unity mobile app communication readiness!
 
 Author: Yahboom Robot Bluetooth Team
 """
@@ -61,8 +76,12 @@ class YahboomBLEClientTest:
             "service_discovery": False,
             "read_test": False,
             "write_test": False,
+            "conversation_test": False,
             "json_parsing": False,
             "status_data": None,
+            "conversation_data": None,
+            "conversation_rounds": 0,
+            "successful_commands": 0,
             "errors": []
         }
         
@@ -98,6 +117,9 @@ class YahboomBLEClientTest:
             # Phase 4: Communication Testing
             success &= await self._test_read_operation()
             success &= await self._test_write_operation()
+            
+            # Phase 5: Intelligent Conversation Testing  
+            success &= await self._test_conversation()
             
         except Exception as e:
             print(f"❌ Test suite failed with unexpected error: {e}")
@@ -606,6 +628,159 @@ class YahboomBLEClientTest:
             self.test_results["errors"].append(f"Write operation failed: {e}")
             return False
             
+    async def _test_conversation(self) -> bool:
+        """Phase 5: Test intelligent bidirectional conversation"""
+        print(f"\n💬 Phase 5: Intelligent Conversation Test")
+        print("-" * 45)
+        
+        try:
+            # Define conversation test sequence
+            conversation_commands = [
+                ("ping", "ping_response", "pong"),
+                ("hello", "greeting_response", "hello_from_yahboom_robot"),
+                ("status", "status_response", "server_name"),
+                ("move_forward", "movement_response", "movement_acknowledged"),
+                ("get_sensors", "sensor_response", "battery_level"),
+                ("speed 75", "speed_response", "speed_set_to_75_percent"),
+                ("emergency_stop", "emergency_response", "emergency_stop_acknowledged"),
+                ("ping", "ping_response", "pong")  # Final ping to test round tracking
+            ]
+            
+            print(f"📋 Testing {len(conversation_commands)} conversation rounds...")
+            print()
+            
+            conversation_results = []
+            successful_rounds = 0
+            
+            for round_num, (command, expected_type, expected_content_key) in enumerate(conversation_commands, 1):
+                print(f"🔄 Round {round_num}: Testing '{command}'")
+                
+                try:
+                    # Step 1: Send command via write
+                    print(f"   📤 Sending command: '{command}'")
+                    await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=False)
+                    
+                    # Brief delay to let server process
+                    await asyncio.sleep(0.3)
+                    
+                    # Step 2: Read response
+                    print(f"   📥 Reading response...")
+                    response_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
+                    
+                    if not response_data:
+                        print(f"   ❌ No response received")
+                        conversation_results.append({
+                            "round": round_num,
+                            "command": command,
+                            "success": False,
+                            "error": "No response received"
+                        })
+                        continue
+                        
+                    # Step 3: Parse JSON response
+                    try:
+                        response_json = response_data.decode('utf-8')
+                        response_obj = json.loads(response_json)
+                        
+                        # Step 4: Validate response structure
+                        response_type = response_obj.get("type", "unknown")
+                        response_content = response_obj.get("content", "")
+                        conversation_round = response_obj.get("conversation_round", 0)
+                        
+                        print(f"   📊 Response type: {response_type}")
+                        print(f"   📊 Content preview: {str(response_content)[:50]}{'...' if len(str(response_content)) > 50 else ''}")
+                        print(f"   📊 Server round: {conversation_round}")
+                        
+                        # Step 5: Validate expected response
+                        validation_success = True
+                        validation_notes = []
+                        
+                        # Check response type
+                        if response_type != expected_type:
+                            validation_success = False
+                            validation_notes.append(f"Type mismatch: expected '{expected_type}', got '{response_type}'")
+                        
+                        # Check content contains expected key/value
+                        content_found = False
+                        if isinstance(response_content, dict):
+                            content_found = expected_content_key in str(response_content).lower()
+                        else:
+                            content_found = expected_content_key in str(response_content).lower()
+                            
+                        if not content_found:
+                            validation_success = False
+                            validation_notes.append(f"Content validation failed: '{expected_content_key}' not found")
+                        
+                        # Check conversation round progression
+                        if conversation_round != round_num:
+                            validation_notes.append(f"Round mismatch: expected {round_num}, server reported {conversation_round}")
+                        
+                        if validation_success:
+                            print(f"   ✅ Response validation passed!")
+                            successful_rounds += 1
+                        else:
+                            print(f"   ⚠️  Response validation issues: {', '.join(validation_notes)}")
+                            
+                        conversation_results.append({
+                            "round": round_num,
+                            "command": command,
+                            "response_type": response_type,
+                            "response_content": response_content,
+                            "server_round": conversation_round,
+                            "success": validation_success,
+                            "validation_notes": validation_notes
+                        })
+                        
+                    except json.JSONDecodeError as e:
+                        print(f"   ❌ JSON parsing failed: {e}")
+                        conversation_results.append({
+                            "round": round_num,
+                            "command": command,
+                            "success": False,
+                            "error": f"JSON parsing failed: {e}",
+                            "raw_response": response_data.decode('utf-8', errors='ignore')
+                        })
+                        
+                except Exception as round_error:
+                    print(f"   ❌ Round {round_num} failed: {round_error}")
+                    conversation_results.append({
+                        "round": round_num,
+                        "command": command,
+                        "success": False,
+                        "error": str(round_error)
+                    })
+                    
+                print()  # Spacing between rounds
+                
+            # Conversation summary
+            print(f"📊 Conversation Test Results:")
+            print(f"   Total rounds: {len(conversation_commands)}")
+            print(f"   Successful rounds: {successful_rounds}")
+            print(f"   Success rate: {successful_rounds}/{len(conversation_commands)} ({100*successful_rounds/len(conversation_commands):.1f}%)")
+            
+            # Store results for final summary
+            self.test_results["conversation_rounds"] = len(conversation_commands)
+            self.test_results["successful_commands"] = successful_rounds
+            self.test_results["conversation_data"] = conversation_results
+            
+            # Determine success threshold (80% success rate)
+            success_threshold = 0.8
+            conversation_success = (successful_rounds / len(conversation_commands)) >= success_threshold
+            
+            if conversation_success:
+                print(f"✅ Conversation test PASSED!")
+                self.test_results["conversation_test"] = True
+                return True
+            else:
+                print(f"❌ Conversation test FAILED (below {success_threshold*100}% threshold)")
+                self.test_results["errors"].append(f"Conversation success rate too low: {successful_rounds}/{len(conversation_commands)}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Conversation test failed: {e}")
+            self.test_results["errors"].append(f"Conversation test error: {e}")
+            return False
+            
     async def _cleanup(self):
         """Clean up connection resources."""
         if self.client and self.client.is_connected:
@@ -624,13 +799,14 @@ class YahboomBLEClientTest:
         results = self.test_results
         
         # Overall status
-        total_tests = 5  # discovery, connection, service discovery, read, write
+        total_tests = 6  # discovery, connection, service discovery, read, write, conversation
         passed_tests = sum([
             results["device_discovery"],
             results["connection"], 
             results["service_discovery"],
             results["read_test"],
-            results["write_test"]
+            results["write_test"],
+            results["conversation_test"]
         ])
         
         print(f"\n🎯 Overall Results: {passed_tests}/{total_tests} tests passed")
@@ -643,6 +819,7 @@ class YahboomBLEClientTest:
             ("Service Discovery", results["service_discovery"]),
             ("Read Operation", results["read_test"]),
             ("Write Operation", results["write_test"]),
+            ("Conversation Test", results["conversation_test"]),
             ("JSON Parsing", results["json_parsing"])
         ]
         
@@ -659,6 +836,24 @@ class YahboomBLEClientTest:
             print(f"   Uptime: {data.get('uptime_seconds')} seconds")
             print(f"   Message Count: {data.get('message_count')}")
             
+        # Conversation summary
+        if results["conversation_data"]:
+            print(f"\n💬 Conversation Test Summary:")
+            print(f"   Total Rounds: {results['conversation_rounds']}")
+            print(f"   Successful Commands: {results['successful_commands']}")
+            success_rate = (results['successful_commands'] / results['conversation_rounds']) * 100 if results['conversation_rounds'] > 0 else 0
+            print(f"   Success Rate: {success_rate:.1f}%")
+            
+            # Show failed commands if any
+            failed_commands = [r for r in results["conversation_data"] if not r.get("success", False)]
+            if failed_commands:
+                print(f"   ⚠️  Failed Commands:")
+                for cmd in failed_commands[:3]:  # Show first 3 failures
+                    error = cmd.get("error", "Unknown error")
+                    print(f"      • Round {cmd['round']}: '{cmd['command']}' - {error}")
+                if len(failed_commands) > 3:
+                    print(f"      • ... and {len(failed_commands) - 3} more")
+            
         # Errors
         if results["errors"]:
             print(f"\n❌ Errors Encountered:")
@@ -668,29 +863,40 @@ class YahboomBLEClientTest:
         # Final verdict
         if passed_tests == total_tests:
             print(f"\n🎉 SUCCESS: All tests passed!")
-            print(f"   Your BLE server is working correctly!")
-        elif passed_tests >= 3:
-            print(f"\n⚠️  PARTIAL SUCCESS: Basic functionality working")
+            print(f"   Your BLE server has full bidirectional messaging capability!")
+            print(f"   Ready for Unity mobile app integration! 📱")
+        elif passed_tests >= 4:
+            print(f"\n⚠️  PARTIAL SUCCESS: Core functionality working")
             print(f"   Server is discoverable and connectable")
-            print(f"   Some advanced features may need attention")
+            if not results["conversation_test"]:
+                print(f"   ⚠️  Conversation feature needs attention")
+            else:
+                print(f"   Advanced conversation features may need fine-tuning")
         else:
             print(f"\n❌ FAILURE: Major issues detected")
             print(f"   Check server configuration and try again")
             
         print("\n💡 Next Steps:")
         if passed_tests == total_tests:
-            print("   • Try testing with mobile BLE scanner apps")
-            print("   • Integrate with your ROS2 robot application")
-            print("   • Add custom commands and data handling")
+            print("   • Excellent! Full bidirectional messaging working 🎉")
+            print("   • Test with Unity mobile app for race control")
+            print("   • Integrate with ROS2 robot movement commands")
+            print("   • Add custom racing commands (emergency_stop, speed, etc.)")
+            print("   • Deploy for Mario Kart Live racing system!")
+        elif results["conversation_test"]:
+            print("   • Conversation system working - fix basic connectivity")
+            print("   • Review server logs for connection issues")
         else:
-            print("   • Review server logs for error messages")
+            print("   • Fix basic connectivity first:")
             print("   • Ensure server is running: python3 ble_server.py")
             print("   • Check Bluetooth permissions and hardware")
+            print("   • Then test conversation features")
 
 
 async def main():
-    """Main test function."""
-    print("Starting BLE Server Test...")
+    """Main test function - Enhanced with intelligent conversation testing."""
+    print("Starting Enhanced BLE Server Test - Bidirectional Messaging Edition...")
+    print("🔥 This version tests intelligent conversation capabilities!")
     print("Make sure 'python3 ble_server.py' is running in another terminal!")
     print()
     
