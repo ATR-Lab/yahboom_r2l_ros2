@@ -10,6 +10,9 @@ bless==0.2.4
 bleak==0.19.5  
 async-timeout==4.0.3
 
+# Linux D-Bus Interface (CRITICAL for Ubuntu/Jetson)
+dbus_next>=1.2.0
+
 # =====================================
 # 🎯 IMPLEMENTATION NOTES
 # =====================================
@@ -22,6 +25,10 @@ async-timeout==4.0.3
 # - Discoverable by mobile BLE scanner apps
 # - JSON-based status data and logging
 # - Handle multiple client connections
+
+# Linux Dependencies:
+# - dbus_next: Required for BlueZ D-Bus communication on Ubuntu/Jetson
+# - Without dbus_next: BLE operations fail silently or with permission errors
 
 # =====================================
 # Built-in Python Modules (No Installation Needed)
