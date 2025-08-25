@@ -6,7 +6,7 @@
 # =====================================
 
 # BLE Server (ble_server.py) - REAL BLUETOOTH! ⭐
-bless==0.2.4
+bless==0.2.6
 bleak==0.19.5  
 async-timeout==4.0.3
 
@@ -18,17 +18,22 @@ dbus_next>=1.2.0
 # =====================================
 
 # BLE Server Features:
-# - Uses bless 0.2.4 with correct API patterns
-# - Requires read_request_func and write_request_func callbacks
-# - Service creation with custom UUIDs
+# - Uses bless 0.2.6 with FULL characteristics support ✅
+# - Requires BlessGATTCharacteristic callbacks (read_request_func/write_request_func)
+# - Complete GATT structure: Service + Characteristics + Properties
 # - Successfully advertises as "YahboomRobot" 
-# - Discoverable by mobile BLE scanner apps
-# - JSON-based status data and logging
+# - Discoverable by mobile BLE scanner apps (nRF Connect tested)
+# - JSON-based status data exchange
+# - Bidirectional communication ready for Unity mobile apps
 # - Handle multiple client connections
 
 # Linux Dependencies:
 # - dbus_next: Required for BlueZ D-Bus communication on Ubuntu/Jetson
 # - Without dbus_next: BLE operations fail silently or with permission errors
+
+# Version Notes:
+# - bless 0.2.4: Had API compatibility issues ("max_write_without_response_size" error)
+# - bless 0.2.6: FIXED characteristic creation - use this version! ⭐
 
 # =====================================
 # Built-in Python Modules (No Installation Needed)

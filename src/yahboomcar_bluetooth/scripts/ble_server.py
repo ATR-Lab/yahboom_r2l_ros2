@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
 """
-Working Minimal BLE Server for Yahboom Robot
-============================================
+Working BLE Server for Yahboom Robot
+====================================
 
-A minimal working BLE server that starts correctly and can be discovered by other devices.
-This version avoids the API issues we encountered.
+A complete BLE server with proper service and characteristic setup.
+This version creates a full BLE GATT structure that clients can connect to and interact with.
 
 Requirements:
     pip install bless
 
 Usage:
-    python3 working_ble_server.py
+    python3 ble_server.py
 
 Author: Yahboom Robot Bluetooth Team
 """
@@ -20,7 +20,12 @@ import asyncio
 import logging
 import json
 from datetime import datetime
-from bless import BlessServer
+from bless import (
+    BlessServer,
+    BlessGATTCharacteristic,
+    GATTCharacteristicProperties,
+    GATTAttributePermissions,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -43,55 +48,106 @@ class YahboomBLEServer:
         self.message_count = 0
         self.start_time = datetime.now()
         
-    def get_status_data(self):
-        """Generate status data as bytes"""
-        status_data = {
-            "timestamp": datetime.now().isoformat(),
-            "status": "running",
-            "message_count": self.message_count,
-            "server_name": "YahboomRobot",
-            "uptime_seconds": int((datetime.now() - self.start_time).total_seconds())
-        }
-        return json.dumps(status_data).encode('utf-8')
-        
-    def read_request_callback(self, characteristic, offset):
+
+    def read_request_callback(self, characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
         """Handle read requests from clients"""
-        logger.info(f"📖 Read request for: {characteristic}")
-        
-        if characteristic == STATUS_CHAR_UUID:
-            data = self.get_status_data()
-            logger.info(f"📤 Sending status data: {len(data)} bytes")
-            return data
-        
-        # Default response
-        response = b"Hello from YahboomRobot!"
-        logger.info(f"📤 Sending default response: {response.decode()}")
-        return response
-        
-    def write_request_callback(self, characteristic, value, offset, without_response):
-        """Handle write requests from clients"""
-        logger.info(f"✍️  Write request for: {characteristic}")
+        logger.info(f"📖 Read request for characteristic: {characteristic.uuid}")
         
         try:
-            message = value.decode('utf-8')
-            self.message_count += 1
-            logger.info(f"📥 Received message: {message} (#{self.message_count})")
+            # Generate current status data
+            status_data = {
+                "timestamp": datetime.now().isoformat(),
+                "status": "running",
+                "message_count": self.message_count,
+                "server_name": "YahboomRobot",
+                "uptime_seconds": int((datetime.now() - self.start_time).total_seconds())
+            }
             
-            # Echo response
-            response = f"Received: {message} (#{self.message_count})"
-            logger.info(f"📤 Response: {response}")
+            # Convert to JSON and then to bytearray
+            response_json = json.dumps(status_data, indent=2)
+            response_bytes = bytearray(response_json.encode('utf-8'))
+            
+            # Update the characteristic value
+            characteristic.value = response_bytes
+            
+            logger.info(f"📤 Sending status data ({len(response_bytes)} bytes)")
+            logger.debug(f"Status data: {response_json}")
+            
+            return response_bytes
             
         except Exception as e:
-            logger.error(f"❌ Error processing write: {e}")
+            logger.error(f"❌ Read request failed: {e}")
+            error_response = bytearray(json.dumps({"error": str(e)}).encode('utf-8'))
+            return error_response
+        
+    def write_request_callback(self, characteristic: BlessGATTCharacteristic, value, **kwargs):
+        """Handle write requests from clients"""
+        logger.info(f"✍️  Write request for characteristic: {characteristic.uuid}")
+        
+        try:
+            # Update the characteristic value
+            characteristic.value = value
+            
+            # Decode the incoming data
+            if isinstance(value, (bytes, bytearray)):
+                message = value.decode('utf-8', errors='ignore')
+            else:
+                message = str(value)
+            
+            self.message_count += 1
+            
+            logger.info(f"📨 Received message #{self.message_count}: '{message}'")
+            
+            # Log to file as well
+            try:
+                with open("ble_messages.log", "a", encoding='utf-8') as f:
+                    timestamp = datetime.now().isoformat()
+                    f.write(f"[{timestamp}] Message #{self.message_count}: {message}\n")
+                    f.flush()
+            except Exception as log_error:
+                logger.warning(f"⚠️  Failed to log message to file: {log_error}")
+            
+            # Here you could add logic to process commands, control the robot, etc.
+            # For example:
+            # if message.startswith("MOVE"):
+            #     self.handle_move_command(message)
+            # elif message.startswith("STATUS"):
+            #     return self.get_detailed_status()
+            
+            logger.info("✅ Write request processed successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Write request failed: {e}")
+            raise
             
     async def setup_server(self):
-        """Initialize the BLE server with basic service"""
+        """Initialize the BLE server with service and characteristics"""
         logger.info("⚙️  Setting up BLE server...")
         
         try:
-            # Add service only (no characteristics to avoid API issues)
+            # Add the main service
             await self.server.add_new_service(SERVICE_UUID)
             logger.info(f"✅ Service added: {SERVICE_UUID}")
+            
+            # Add the status characteristic with proper API usage
+            char_properties = (
+                GATTCharacteristicProperties.read
+                | GATTCharacteristicProperties.write
+                | GATTCharacteristicProperties.notify
+            )
+            char_permissions = (
+                GATTAttributePermissions.readable 
+                | GATTAttributePermissions.writeable
+            )
+            
+            await self.server.add_new_characteristic(
+                SERVICE_UUID,           # service_uuid
+                STATUS_CHAR_UUID,       # char_uuid  
+                char_properties,        # properties
+                None,                  # initial_value (can be None)
+                char_permissions       # permissions
+            )
+            logger.info(f"✅ Characteristic added: {STATUS_CHAR_UUID}")
             
             # Set up required callbacks
             self.server.read_request_func = self.read_request_callback
