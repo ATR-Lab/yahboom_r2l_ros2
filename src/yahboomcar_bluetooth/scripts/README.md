@@ -11,7 +11,11 @@ pip install -r bluetooth_requirements.txt
 
 ### 2. Start the BLE Server
 ```bash
+# For Ubuntu/macOS (BlueZ 5.64+):
 python3 ble_server.py
+
+# For Jetson Nano (BlueZ 5.53):
+python3 ble_server.py --jetson
 ```
 
 ### 3. Test the Server
@@ -19,7 +23,11 @@ Choose one of these testing approaches:
 
 #### Option A: Automated Test (Recommended)
 ```bash
+# For Ubuntu/macOS (BlueZ 5.64+):
 python3 ble_client_test.py
+
+# For Jetson Nano (BlueZ 5.53):
+python3 ble_client_test.py --jetson
 ```
 
 #### Option B: Mobile Device Testing
@@ -36,12 +44,14 @@ python3 ble_client_test.py
   - Advertises as "YahboomRobot" (discoverable by mobile BLE scanners)
   - JSON-based bidirectional status data and message handling
   - BlessGATTCharacteristic callbacks for read/write operations
+  - **BlueZ compatibility mode** (`--jetson` flag for BlueZ 5.53)
   - Comprehensive logging and error handling
 
 - **`ble_client_test.py`** - Automated test client ⭐
   - Comprehensive server validation
   - Device discovery and connection testing
-  - Read/write operation validation  
+  - Read/write operation validation
+  - **Adaptive write mode** (`--jetson` flag for BlueZ 5.53 compatibility)
   - Clear pass/fail reporting
 
 ### 📦 Dependencies & Setup
@@ -89,11 +99,19 @@ python3 ble_client_test.py
 The **`ble_client_test.py`** provides comprehensive automated testing:
 
 ```bash
+# Ubuntu/macOS (BlueZ 5.64+):
 # Terminal 1: Start server
 python3 ble_server.py
 
 # Terminal 2: Run automated test
 python3 ble_client_test.py
+
+# Jetson Nano (BlueZ 5.53):
+# Terminal 1: Start server with compatibility mode
+python3 ble_server.py --jetson
+
+# Terminal 2: Run test with compatibility mode
+python3 ble_client_test.py --jetson
 ```
 
 **Test Coverage:**
@@ -127,7 +145,9 @@ python3 ble_client_test.py
 | Cross-platform | BLE Scanner | Various developers |
 
 ### Testing Steps
-1. **Start Server**: `python3 ble_server.py`
+1. **Start Server**: 
+   - Ubuntu/macOS: `python3 ble_server.py`
+   - Jetson Nano: `python3 ble_server.py --jetson`
 2. **Open BLE Scanner**: Launch your chosen mobile app
 3. **Scan for Devices**: Look for "YahboomRobot"
 4. **Connect**: Tap to connect to the device
@@ -284,6 +304,25 @@ pip install dbus_next>=1.2.0
 # Solution: Always install from requirements.txt on Linux systems
 ```
 
+### BlueZ Version Compatibility
+**Issue**: Write operations time out on Jetson Nano/older BlueZ versions
+```bash
+# Error: "CBATTErrorDomain Code=14 'Unlikely error.'"
+# Cause: BlueZ 5.53 (Jetson Nano) vs BlueZ 5.64+ (Ubuntu 22.04)
+
+# Solution: Use --jetson compatibility flag
+# On Jetson Nano server:
+python3 ble_server.py --jetson
+
+# On client connecting to Jetson server:
+python3 ble_client_test.py --jetson
+
+# Technical details:
+# - BlueZ 5.53: Requires write_without_response for callbacks
+# - BlueZ 5.64+: Supports write_with_response automatically
+# - --jetson flag enables dual-mode characteristic properties
+```
+
 ## 🎯 Use Cases
 
 ### Robot Control
@@ -311,6 +350,7 @@ pip install dbus_next>=1.2.0
 - **Range**: ~10 meters typical for BLE
 - **Power Usage**: Low (BLE optimized for battery devices)
 - **Concurrent Connections**: Multiple clients supported
+- **BlueZ Compatibility**: `--jetson` flag eliminates write timeout issues
 
 ## 🔒 Security Considerations
 
@@ -339,9 +379,12 @@ You now have a **fully functional Bluetooth server** that:
 - ✅ Proper BlessGATTCharacteristic callback handling
 - ✅ Structured JSON data exchange
 - ✅ Multiple concurrent client support
-- ✅ Cross-platform (macOS/Ubuntu tested)
+- ✅ Cross-platform (macOS/Ubuntu/Jetson Nano tested)
+- ✅ **BlueZ version compatibility** (`--jetson` flag for older BlueZ)
 - ✅ Comprehensive logging and error handling
 
-**CRITICAL VERSION REQUIREMENT**: Must use `bless==0.2.6` for characteristic creation to work!
+**CRITICAL REQUIREMENTS**: 
+- Must use `bless==0.2.6` for characteristic creation to work!
+- Use `--jetson` flag on Jetson Nano for BlueZ 5.53 compatibility
 
 Ready for integration with your Yahboom robot and Unity mobile racing applications! 🤖🏎️

@@ -34,6 +34,7 @@ Usage:
 Author: Yahboom Robot Bluetooth Team
 """
 
+import argparse
 import asyncio
 import logging
 import json
@@ -302,10 +303,13 @@ def _process_command(command: str) -> dict:
     return response
 
 class YahboomBLEServer:
-    def __init__(self, loop=None):
+    def __init__(self, loop=None, jetson_mode=False):
         # Initialize global server state (used by standalone callbacks)
         server_state["start_time"] = datetime.now()
         server_state["conversation_state"]["session_id"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Store compatibility mode
+        self.jetson_mode = jetson_mode
         
         # Create BLE server with event loop (following bless example pattern)
         self.server = BlessServer(name="YahboomRobot", loop=loop)
@@ -332,6 +336,11 @@ class YahboomBLEServer:
                 | GATTCharacteristicProperties.write
                 | GATTCharacteristicProperties.notify
             )
+            
+            # Add write_without_response for Jetson Nano compatibility (BlueZ 5.53)
+            if self.jetson_mode:
+                char_properties |= GATTCharacteristicProperties.write_without_response
+                logger.info("✅ Jetson mode: Added write_without_response compatibility")
             char_permissions = (
                 GATTAttributePermissions.readable 
                 | GATTAttributePermissions.writeable
@@ -397,7 +406,7 @@ class YahboomBLEServer:
             logger.error(f"❌ Error stopping server: {e}")
 
 
-async def main(loop):
+async def main(loop, jetson_mode=False):
     """Main function to run the BLE server - following bless example pattern"""
     print("=" * 70)
     print("    🤖 Yahboom Robot BLE Server - Intelligent Conversations")
@@ -409,10 +418,15 @@ async def main(loop):
     print("  • Command processing with smart responses")
     print("  • Conversation state tracking")
     print("  • Unity mobile app ready")
+    if jetson_mode:
+        print("  • Jetson Nano compatibility mode (BlueZ 5.53)")
     print()
     print("📱 How to test:")
     print("  • Use 'nRF Connect' app on mobile")
-    print("  • Or run: python3 ble_client_test.py (automated)")
+    if jetson_mode:
+        print("  • Or run: python3 ble_client_test.py --jetson (automated)")
+    else:
+        print("  • Or run: python3 ble_client_test.py (automated)")
     print("  • Look for 'YahboomRobot' device")
     print()
     print("🎯 Service UUID: 12345678-1234-1234-1234-123456789abc")
@@ -432,7 +446,7 @@ async def main(loop):
     print()
     
     # Create server with event loop (following bless example pattern)
-    server = YahboomBLEServer(loop=loop)
+    server = YahboomBLEServer(loop=loop, jetson_mode=jetson_mode)
     
     try:
         success = await server.start_server()
@@ -451,6 +465,12 @@ async def main(loop):
 
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Yahboom Robot BLE Server')
+    parser.add_argument('--jetson', action='store_true', 
+                       help='Enable Jetson Nano compatibility mode (BlueZ 5.53)')
+    args = parser.parse_args()
+    
     # Event loop handling following bless example pattern
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(loop))
+    loop.run_until_complete(main(loop, jetson_mode=args.jetson))

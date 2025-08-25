@@ -42,6 +42,7 @@ enabling full bidirectional messaging capability for racing control applications
 Author: Yahboom Robot Bluetooth Team
 """
 
+import argparse
 import asyncio
 import json
 import logging
@@ -70,9 +71,10 @@ logger = logging.getLogger(__name__)
 class YahboomBLEClientTest:
     """Comprehensive BLE server test client."""
     
-    def __init__(self):
+    def __init__(self, jetson_mode=False):
         self.device: Optional[BLEDevice] = None
         self.client: Optional[BleakClient] = None
+        self.jetson_mode = jetson_mode
         self.test_results = {
             "device_discovery": False,
             "connection": False,
@@ -615,7 +617,8 @@ class YahboomBLEClientTest:
             
             # Write to status characteristic (server should log this)
             message_bytes = test_message.encode('utf-8')
-            await self.client.write_gatt_char(STATUS_CHAR_UUID, message_bytes, response=True)
+            response_mode = not self.jetson_mode  # False for Jetson, True for others
+            await self.client.write_gatt_char(STATUS_CHAR_UUID, message_bytes, response=response_mode)
             
             print("✅ Write operation completed")
             print("📝 Check server logs to verify message was received")
@@ -661,7 +664,8 @@ class YahboomBLEClientTest:
                 try:
                     # Step 1: Send command via write
                     print(f"   📤 Sending command: '{command}'")
-                    await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=True)
+                    response_mode = not self.jetson_mode  # False for Jetson, True for others
+                    await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=response_mode)
                     
                     # Brief delay to let server process
                     await asyncio.sleep(0.3)
@@ -896,25 +900,35 @@ class YahboomBLEClientTest:
             print("   • Then test conversation features")
 
 
-async def main():
+async def main(jetson_mode=False):
     """Main test function - Enhanced with intelligent conversation testing."""
     print("Starting Enhanced BLE Server Test - Bidirectional Messaging Edition...")
     print("🔥 This version tests intelligent conversation capabilities!")
-    print("Make sure 'python3 ble_server.py' is running in another terminal!")
+    if jetson_mode:
+        print("🤖 Jetson Nano mode: Using write-without-response for compatibility")
+        print("Make sure 'python3 ble_server.py --jetson' is running in another terminal!")
+    else:
+        print("Make sure 'python3 ble_server.py' is running in another terminal!")
     print()
     
     # Brief delay to let user read the message
     await asyncio.sleep(1)
     
-    tester = YahboomBLEClientTest()
+    tester = YahboomBLEClientTest(jetson_mode=jetson_mode)
     success = await tester.run_full_test()
     
     return success
 
 
 if __name__ == '__main__':
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Yahboom Robot BLE Client Test')
+    parser.add_argument('--jetson', action='store_true', 
+                       help='Enable Jetson Nano compatibility mode (use write-without-response)')
+    args = parser.parse_args()
+    
     if BLEAK_AVAILABLE:
-        result = asyncio.run(main())
+        result = asyncio.run(main(jetson_mode=args.jetson))
         exit_code = 0 if result else 1
         exit(exit_code)
     else:
