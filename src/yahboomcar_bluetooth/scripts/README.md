@@ -32,8 +32,10 @@ python3 ble_client_test.py
 ### 🔧 Working Implementation
 - **`ble_server.py`** - Complete BLE server implementation ⭐
   - Real Bluetooth Low Energy communication
-  - Advertises as "YahboomRobot"
-  - JSON-based status data and message handling
+  - Full GATT structure: Service + Characteristics + Properties
+  - Advertises as "YahboomRobot" (discoverable by mobile BLE scanners)
+  - JSON-based bidirectional status data and message handling
+  - BlessGATTCharacteristic callbacks for read/write operations
   - Comprehensive logging and error handling
 
 - **`ble_client_test.py`** - Automated test client ⭐
@@ -44,9 +46,10 @@ python3 ble_client_test.py
 
 ### 📦 Dependencies & Setup
 - **`bluetooth_requirements.txt`** - Python dependencies with tested versions
-  - `bless==0.2.4` - BLE server library
+  - `bless==0.2.6` - BLE server library ⭐ (REQUIRED version for characteristics support)
   - `bleak==0.19.5` - BLE client library (for testing)
   - `async-timeout==4.0.3` - Async timeout support
+  - `dbus_next>=1.2.0` - Linux D-Bus interface (critical for Ubuntu/Jetson)
 
 ### 🔍 Utilities
 - **`ble_scanner.py`** - BLE device scanner utility
@@ -162,27 +165,56 @@ from your_msgs.msg import YourMessageType
 ### Custom Commands
 Extend the server by modifying the callback functions:
 ```python
-def write_request_callback(self, characteristic, value, offset, without_response):
+def write_request_callback(self, characteristic: BlessGATTCharacteristic, value, **kwargs):
+    """Handle write requests with bless 0.2.6 API"""
     try:
+        # Update characteristic value
+        characteristic.value = value
+        
+        # Decode command
         command = value.decode('utf-8')
         if command == "move_forward":
             # Implement robot movement
             pass
         elif command == "get_sensors":
-            # Return sensor data
+            # Return sensor data via read_request_callback
+            pass
+        elif command.startswith("SPEED:"):
+            speed = int(command.split(":")[1])
+            # Set robot speed
             pass
     except Exception as e:
         logger.error(f"Command processing error: {e}")
 ```
 
 ### Adding New Characteristics
-To add more BLE characteristics:
+To add more BLE characteristics (bless 0.2.6 API):
 ```python
+from bless import GATTCharacteristicProperties, GATTAttributePermissions
+
 # In setup_server method:
 NEW_CHAR_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-await self.server.add_new_service(NEW_CHAR_UUID)
 
-# Handle in read/write callbacks
+# Define properties and permissions
+char_properties = (
+    GATTCharacteristicProperties.read 
+    | GATTCharacteristicProperties.write
+)
+char_permissions = (
+    GATTAttributePermissions.readable 
+    | GATTAttributePermissions.writeable
+)
+
+# Add to existing service
+await self.server.add_new_characteristic(
+    SERVICE_UUID,        # service_uuid
+    NEW_CHAR_UUID,       # char_uuid
+    char_properties,     # properties
+    None,               # initial_value
+    char_permissions    # permissions
+)
+
+# Handle in read/write callbacks based on characteristic.uuid
 ```
 
 ## 🛠 Troubleshooting
@@ -224,17 +256,32 @@ pip install -r bluetooth_requirements.txt
 # Ensure mobile app has proper BLE permissions
 ```
 
-### API Errors
-**Issue**: `bless` library API errors
+### API Errors & Version Issues
+**Issue**: `bless` library API errors (characteristic creation fails)
 ```bash
-# Ensure exact versions from requirements.txt
-pip install bless==0.2.4 bleak==0.19.5 async-timeout==4.0.3
+# CRITICAL: Use bless 0.2.6 (NOT 0.2.4)
+pip install bless==0.2.6 bleak==0.19.5 async-timeout==4.0.3
+
+# Common error with 0.2.4:
+# "BleakGATTCharacteristicBlueZDBus.__init__() missing 1 required positional argument"
+
+# Solution: Upgrade to 0.2.6
+pip install --upgrade bless==0.2.6
 
 # Check Python version (3.7+ required for asyncio)
 python3 --version
 
 # Verify no conflicting Bluetooth libraries
 pip list | grep -i blue
+```
+
+**Issue**: Ubuntu/Linux D-Bus errors
+```bash
+# Ensure dbus_next is installed (critical for BlueZ communication)
+pip install dbus_next>=1.2.0
+
+# Error: "ModuleNotFoundError: No module named 'dbus_next'"
+# Solution: Always install from requirements.txt on Linux systems
 ```
 
 ## 🎯 Use Cases
@@ -284,12 +331,17 @@ This is a **demonstration implementation**. For production use, consider:
 
 ## 🎉 Success!
 
-You now have a **working Bluetooth server** that:
+You now have a **fully functional Bluetooth server** that:
 - ✅ Actually uses real Bluetooth (not TCP simulation)
-- ✅ Is discoverable by mobile devices
-- ✅ Handles bidirectional communication
-- ✅ Provides structured JSON data
-- ✅ Supports multiple clients
-- ✅ Includes comprehensive logging
+- ✅ Complete GATT implementation with services and characteristics
+- ✅ Discoverable by mobile devices (tested with nRF Connect)
+- ✅ Unity mobile app compatible bidirectional communication
+- ✅ Proper BlessGATTCharacteristic callback handling
+- ✅ Structured JSON data exchange
+- ✅ Multiple concurrent client support
+- ✅ Cross-platform (macOS/Ubuntu tested)
+- ✅ Comprehensive logging and error handling
 
-Ready for integration with your Yahboom robot! 🤖
+**CRITICAL VERSION REQUIREMENT**: Must use `bless==0.2.6` for characteristic creation to work!
+
+Ready for integration with your Yahboom robot and Unity mobile racing applications! 🤖🏎️
