@@ -473,7 +473,8 @@ class YahboomBLEClientTest:
             print("Discovering services and characteristics...")
             
             services = self.client.services
-            print(f"Found {len(services)} services")
+            services_list = list(services)
+            print(f"Found {len(services_list)} services")
             
             # Look for our service
             target_service = None
