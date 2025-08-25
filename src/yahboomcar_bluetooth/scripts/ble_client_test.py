@@ -265,11 +265,24 @@ class YahboomBLEClientTest:
                         return candidate
                     else:
                         print(f"   ❌ Service exists but missing target characteristic")
+                        print(f"      Expected: {STATUS_CHAR_UUID}")
+                        print(f"      Available characteristics in target service:")
+                        if target_service.characteristics:
+                            for char in target_service.characteristics:
+                                print(f"         • {char.uuid} (Properties: {char.properties})")
+                        else:
+                            print(f"         • NO characteristics found in service!")
+                            print(f"         • This suggests server uses service-level callbacks")
                 else:
                     print(f"   ❌ Target service not found")
                     print(f"      Available services:")
                     for service in services:
                         print(f"         • {service.uuid}")
+                        if service.characteristics:
+                            for char in service.characteristics:
+                                print(f"           - Characteristic: {char.uuid} (Properties: {char.properties})")
+                        else:
+                            print(f"           - No characteristics in this service")
                         
                 # Clean up connection
                 await test_client.disconnect()
