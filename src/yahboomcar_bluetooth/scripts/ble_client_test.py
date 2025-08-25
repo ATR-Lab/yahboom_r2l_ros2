@@ -29,7 +29,7 @@ import json
 import logging
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 try:
     from bleak import BleakScanner, BleakClient
@@ -114,53 +114,317 @@ class YahboomBLEClientTest:
         return success
         
     async def _test_device_discovery(self) -> bool:
-        """Phase 1: Discover YahboomRobot BLE device."""
-        print("🔍 Phase 1: Device Discovery")
-        print("-" * 30)
+        """Phase 1: Discover Yahboom BLE device using redesigned multi-stage approach."""
+        print("🔍 Phase 1: Device Discovery (Redesigned Multi-Stage)")
+        print("-" * 50)
         
         try:
-            print(f"Scanning for '{TARGET_DEVICE_NAME}' BLE device...")
+            # Stage 1: Broad name pattern matching (handles truncation)
+            print(f"🎯 Stage 1: Scanning for Yahboom devices (pattern matching)...")
+            candidates = await self._discover_by_name_patterns()
             
-            # Scan for devices with timeout
-            devices = await BleakScanner.discover(timeout=10.0, return_adv=False)
+            if not candidates:
+                print(f"❌ No Yahboom-like devices found")
+                await self._show_comprehensive_debug_info()
+                self.test_results["errors"].append("No candidate devices found")
+                return False
+                
+            print(f"✅ Found {len(candidates)} candidate device(s)")
+            for i, candidate in enumerate(candidates):
+                print(f"   {i+1}. {candidate.name or 'Unknown'} ({candidate.address}) RSSI: {candidate.rssi}dBm")
             
-            print(f"Found {len(devices)} BLE devices")
+            # Stage 2: Post-connection service validation
+            print(f"\n🎯 Stage 2: Validating service UUIDs (post-connection)...")
+            validated_device = await self._validate_device_services(candidates)
             
-            # Look for our target device
-            target_device = None
-            for device in devices:
-                if device.name == TARGET_DEVICE_NAME:
-                    target_device = device
-                    break
-                    
-            if target_device:
-                self.device = target_device
-                print(f"✅ Found {TARGET_DEVICE_NAME} at {target_device.address}")
-                print(f"   RSSI: {target_device.rssi} dBm")
+            if validated_device:
+                self.device = validated_device
+                print(f"✅ Device validated successfully!")
+                print(f"   Device Name: {validated_device.name or 'Not Advertised'}")
+                print(f"   Actual Name: '{validated_device.name}' (expected: '{TARGET_DEVICE_NAME}')")
+                print(f"   Address: {validated_device.address}")
+                print(f"   RSSI: {validated_device.rssi} dBm")
+                print(f"   Service UUID: {SERVICE_UUID} ✓")
+                
                 self.test_results["device_discovery"] = True
                 return True
             else:
-                print(f"❌ {TARGET_DEVICE_NAME} device not found")
-                print("\n🔧 Troubleshooting:")
-                print(f"   • Ensure 'python3 ble_server.py' is running")
-                print(f"   • Check that server is advertising as '{TARGET_DEVICE_NAME}'")
-                print(f"   • Verify Bluetooth is enabled on both devices")
-                print(f"   • Try running server with sudo on Linux")
-                
-                # Show other devices for debugging
-                if devices:
-                    print(f"\n📱 Other BLE devices found:")
-                    for device in devices[:5]:  # Show first 5
-                        name = device.name or "Unknown"
-                        print(f"   • {name} ({device.address})")
-                        
-                self.test_results["errors"].append("Target device not found")
+                print(f"❌ No candidates passed service validation")
+                await self._show_comprehensive_debug_info()
+                self.test_results["errors"].append("Service validation failed")
                 return False
                 
         except Exception as e:
             print(f"❌ Device discovery failed: {e}")
             self.test_results["errors"].append(f"Discovery error: {e}")
             return False
+
+    async def _discover_by_name_patterns(self) -> List[BLEDevice]:
+        """Stage 1: Discover devices using flexible name pattern matching."""
+        try:
+            # Standard device discovery without service UUID filtering
+            # (Service UUID not in advertising data, only available after connection)
+            devices = await BleakScanner.discover(timeout=10.0, return_adv=True)
+            
+            print(f"   Scanning {len(devices)} total BLE devices...")
+            
+            candidates = []
+            
+            # Multiple name matching strategies to handle truncation
+            name_patterns = [
+                TARGET_DEVICE_NAME,           # Exact: "YahboomRobot"
+                "YahboomRob",                 # Truncated (nRF Connect showed this)
+                "Yahboom",                    # Prefix match
+                lambda name: "yahboom" in name.lower(),  # Case insensitive substring
+                lambda name: "robot" in name.lower(),    # Generic robot pattern
+                lambda name: name.lower().startswith("yah"),  # Very flexible prefix
+            ]
+            
+            for device_info in devices.values():
+                device = device_info[0] if isinstance(device_info, tuple) else device_info
+                device_name = device.name
+                
+                if not device_name:  # Skip devices without names
+                    continue
+                    
+                # Check against all patterns
+                is_match = False
+                matched_pattern = None
+                
+                for pattern in name_patterns:
+                    if callable(pattern):
+                        # Pattern is a function
+                        if pattern(device_name):
+                            is_match = True
+                            matched_pattern = f"function({pattern.__name__ if hasattr(pattern, '__name__') else 'lambda'})"
+                            break
+                    else:
+                        # Pattern is a string
+                        if device_name == pattern:
+                            is_match = True
+                            matched_pattern = f"exact('{pattern}')"
+                            break
+                            
+                if is_match:
+                    candidates.append(device)
+                    print(f"   ✅ Candidate: '{device_name}' matched by {matched_pattern}")
+                    
+            if candidates:
+                print(f"   ✅ Pattern matching successful: {len(candidates)} candidate(s) found")
+            else:
+                print(f"   ❌ No devices matched any Yahboom name patterns")
+                
+            return candidates
+            
+        except Exception as e:
+            print(f"   ❌ Pattern matching error: {e}")
+            return []
+
+    async def _validate_device_services(self, candidates: List[BLEDevice]) -> Optional[BLEDevice]:
+        """Stage 2: Post-connection service validation to confirm the correct device."""
+        for i, candidate in enumerate(candidates):
+            print(f"   Validating candidate {i+1}/{len(candidates)}: {candidate.name} ({candidate.address})")
+            
+            try:
+                # Attempt connection
+                test_client = BleakClient(candidate)
+                await test_client.connect()
+                
+                if not test_client.is_connected:
+                    print(f"   ❌ Failed to connect to {candidate.name}")
+                    continue
+                    
+                print(f"   ✅ Connected to {candidate.name}")
+                
+                # Check if our target service exists
+                services = test_client.services
+                target_service = None
+                
+                for service in services:
+                    if service.uuid.lower() == SERVICE_UUID.lower():
+                        target_service = service
+                        break
+                        
+                if target_service:
+                    # Check if our target characteristic exists
+                    target_characteristic = None
+                    for char in target_service.characteristics:
+                        if char.uuid.lower() == STATUS_CHAR_UUID.lower():
+                            target_characteristic = char
+                            break
+                            
+                    if target_characteristic:
+                        print(f"   ✅ Service validation passed!")
+                        print(f"      Service: {SERVICE_UUID} ✓")
+                        print(f"      Characteristic: {STATUS_CHAR_UUID} ✓")
+                        
+                        # Disconnect the test client
+                        await test_client.disconnect()
+                        
+                        # Return this device as the validated candidate
+                        return candidate
+                    else:
+                        print(f"   ❌ Service exists but missing target characteristic")
+                else:
+                    print(f"   ❌ Target service not found")
+                    print(f"      Available services:")
+                    for service in services:
+                        print(f"         • {service.uuid}")
+                        
+                # Clean up connection
+                await test_client.disconnect()
+                
+            except Exception as e:
+                print(f"   ❌ Validation error for {candidate.name}: {e}")
+                try:
+                    if 'test_client' in locals() and test_client.is_connected:
+                        await test_client.disconnect()
+                except:
+                    pass
+                continue
+                
+        print(f"   ❌ No candidates passed service validation")
+        return None
+
+    async def _show_comprehensive_debug_info(self):
+        """Show detailed debugging information for troubleshooting."""
+        print(f"\n🔧 Comprehensive Troubleshooting Information (Redesigned Discovery)")
+        print("-" * 60)
+        
+        try:
+            # Get all devices with full advertising data for analysis
+            print("📊 Analyzing all nearby BLE devices...")
+            devices = await BleakScanner.discover(timeout=8.0, return_adv=True)
+            
+            if not devices:
+                print("❌ No BLE devices found at all")
+                print("\n💡 Basic Troubleshooting:")
+                print("   • Check if Bluetooth is enabled on this device")
+                print("   • Ensure you have Bluetooth permissions")
+                print("   • Try running with sudo on Linux")
+                return
+                
+            print(f"📱 Found {len(devices)} BLE devices total:")
+            
+            # Detailed device analysis with pattern matching info
+            yahboom_candidates = []
+            potential_matches = []
+            
+            # Pattern matching criteria (same as discovery method)
+            name_patterns = [
+                ("exact_target", lambda name: name == TARGET_DEVICE_NAME),
+                ("truncated", lambda name: name == "YahboomRob"),
+                ("yahboom_prefix", lambda name: name.startswith("Yahboom")),
+                ("yahboom_substring", lambda name: "yahboom" in name.lower()),
+                ("robot_substring", lambda name: "robot" in name.lower()),
+                ("yah_prefix", lambda name: name.lower().startswith("yah")),
+            ]
+            
+            for device_info in list(devices.values())[:15]:  # Analyze first 15 devices
+                device = device_info[0] if isinstance(device_info, tuple) else device_info
+                adv_data = device_info[1] if isinstance(device_info, tuple) and len(device_info) > 1 else None
+                
+                name = device.name or "Unknown"
+                address = device.address
+                
+                # Check pattern matches
+                matches = []
+                for pattern_name, pattern_func in name_patterns:
+                    if device.name and pattern_func(device.name):
+                        matches.append(pattern_name)
+                        if device not in yahboom_candidates:
+                            yahboom_candidates.append(device)
+                
+                # Check for service UUIDs in advertising data
+                adv_service_uuids = []
+                if adv_data and hasattr(adv_data, 'service_uuids') and adv_data.service_uuids:
+                    adv_service_uuids = [str(uuid) for uuid in adv_data.service_uuids]
+                
+                # Display device info
+                status_indicators = []
+                if matches:
+                    status_indicators.append("🎯")
+                if SERVICE_UUID.lower() in [uuid.lower() for uuid in adv_service_uuids]:
+                    status_indicators.append("🔍")
+                    
+                status = " " + " ".join(status_indicators) if status_indicators else ""
+                
+                print(f"   • '{name}' ({address}) RSSI: {device.rssi}dBm{status}")
+                
+                if matches:
+                    print(f"     Pattern matches: {', '.join(matches)}")
+                    
+                if adv_service_uuids:
+                    print(f"     Advertised services: {adv_service_uuids}")
+                elif matches:  # Only show for potential matches
+                    print(f"     Advertised services: None (service UUID only available after connection)")
+                    
+            # Analysis summary
+            print(f"\n📋 Pattern Matching Analysis:")
+            print(f"   Expected device name: '{TARGET_DEVICE_NAME}'")
+            print(f"   Known truncated name: 'YahboomRob' (nRF Connect finding)")
+            
+            if yahboom_candidates:
+                print(f"   🎯 Found {len(yahboom_candidates)} potential Yahboom devices:")
+                for device in yahboom_candidates:
+                    actual_name = device.name or "No Name"
+                    truncation_note = ""
+                    if actual_name == "YahboomRob":
+                        truncation_note = " (BLE name truncation detected!)"
+                    print(f"      • '{actual_name}' ({device.address}){truncation_note}")
+            else:
+                print(f"   ❌ No devices matched any Yahboom patterns")
+                print(f"   🔍 Patterns checked:")
+                print(f"      • Exact match: '{TARGET_DEVICE_NAME}'")
+                print(f"      • Truncated: 'YahboomRob'")
+                print(f"      • Prefix: 'Yahboom*'")
+                print(f"      • Substring: '*yahboom*' (case insensitive)")
+                print(f"      • Generic: '*robot*' (case insensitive)")
+                print(f"      • Flexible: 'yah*' (case insensitive)")
+                
+            # Service UUID analysis
+            service_uuid_note = f"""
+🔍 Service UUID Discovery Analysis:
+   Target service: {SERVICE_UUID}
+   ❌ Service UUIDs NOT found in advertising data (this is normal!)
+   ✅ Service validation happens AFTER connection (Stage 2)
+   📱 This matches nRF Connect behavior - services appear after connection"""
+            print(service_uuid_note)
+                
+            # Platform-specific guidance
+            print(f"\n🖥️  Platform-Specific Troubleshooting:")
+            
+            import platform
+            system = platform.system().lower()
+            
+            if system == "linux":
+                print("   📟 Linux/Ubuntu detected:")
+                print("      • Device name truncation is common (BlueZ behavior)")
+                print("      • 'YahboomRobot' becomes 'YahboomRob' due to advertising limits")
+                print("      • Service UUID NOT in advertising data (normal)")
+                print("      • Run server with: sudo python3 ble_server.py")
+                print("      • Our enhanced client handles truncation automatically")
+                
+            elif system == "darwin":
+                print("   🍎 macOS detected:")
+                print("      • Device name may or may not be truncated")
+                print("      • Check System Preferences → Security & Privacy → Bluetooth")
+                print("      • Service UUID still not in advertising (normal BLE behavior)")
+                
+            elif system == "windows":
+                print("   🪟 Windows detected:")
+                print("      • BLE advertising behavior varies by Windows version")
+                print("      • Ensure Windows Bluetooth drivers are up to date")
+                
+            print(f"\n💡 Next Steps:")
+            print(f"   1. Verify BLE server running: python3 ble_server.py")
+            print(f"   2. Look for 'YahboomRob' or similar in device scan")
+            print(f"   3. Enhanced client now tries pattern matching + service validation")
+            print(f"   4. Check nRF Connect app shows same truncated name")
+            print(f"   5. Service validation happens after connection (Stage 2)")
+            
+        except Exception as e:
+            print(f"❌ Debug analysis failed: {e}")
             
     async def _test_connection(self) -> bool:
         """Phase 2: Test connection to device."""
