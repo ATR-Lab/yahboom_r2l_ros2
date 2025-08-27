@@ -420,6 +420,39 @@ python3 ble_server.py --jetson
 # - jetson_mode:=true enables dual-mode characteristic properties for compatibility
 ```
 
+**macOS Bluetooth Device Name Caching**
+```bash
+# Issue: BLE test scripts see old cached device names while other apps see current names
+# Example: test_ros2_bridge.py finds "YahboomRobot" but nRF Connect shows "YahboomRacer_Car1"
+
+# Cause: macOS Core Bluetooth framework caches BLE device information in multiple database files
+# Standard Bluetooth cache clearing is insufficient for BLE device name changes
+
+# Solution: Comprehensive Bluetooth cache clearing (macOS)
+# Step 1: Standard cache clearing (prepare system)
+sudo pkill bluetoothd
+sudo rm -rf /Library/Preferences/com.apple.Bluetooth.plist  
+rm -rf ~/Library/Preferences/com.apple.bluetoothuserd.plist
+
+# Step 2: Clear BLE device database files (CRITICAL for device name caching)
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.other.db*
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.paired.db*
+sudo rm -f /Library/Bluetooth/Library/Preferences/com.apple.MobileBluetooth.devices.plist
+
+# Step 3: Restart Bluetooth daemon  
+sudo pkill bluetoothd  # Will auto-restart
+
+# Step 4: REBOOT REQUIRED (changes need system restart)
+sudo reboot
+
+# After reboot, test scripts should see correct device names:
+cd src/yahboomcar_bluetooth/scripts/
+python3 test_ros2_bridge.py  # Should now find "YahboomRacer_Car1"
+
+# Note: Hidden Bluetooth debug menu (Option+Shift+Bluetooth) was removed in macOS Sequoia 15.5+
+# Manual cache clearing is now the only reliable method for BLE device name issues
+```
+
 ## Robot Control System
 
 ### Multiplayer Racing Control Architecture
