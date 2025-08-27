@@ -39,6 +39,7 @@ class CarData:
         self.imu_data = None
         self.magnetometer_data = None
         self.joint_states = None
+        self.edition = 0.0
         
         # Control state
         self.control_mode = "RACING"  # RACING, MANUAL, EMERGENCY_STOPPED
@@ -95,18 +96,18 @@ class RosDataManager:
                 )
             )
             
-            # Velocity feedback
+            # Velocity feedback  
             self.subscriptions.append(
                 self.node.create_subscription(
-                    Twist, f"{namespace}/pub_vel",
+                    Twist, f"{namespace}/vel_raw",
                     lambda msg, cid=car_id: self._velocity_callback(msg, cid), 10
                 )
             )
             
-            # IMU data
+            # IMU data (filtered)
             self.subscriptions.append(
                 self.node.create_subscription(
-                    Imu, f"{namespace}/pub_imu",
+                    Imu, f"{namespace}/imu/imu_data",
                     lambda msg, cid=car_id: self._imu_callback(msg, cid), 10
                 )
             )
@@ -124,6 +125,22 @@ class RosDataManager:
                 self.node.create_subscription(
                     JointState, f"{namespace}/joint_states",
                     lambda msg, cid=car_id: self._joint_states_callback(msg, cid), 10
+                )
+            )
+            
+            # Robot edition/version info
+            self.subscriptions.append(
+                self.node.create_subscription(
+                    Float32, f"{namespace}/edition",
+                    lambda msg, cid=car_id: self._edition_callback(msg, cid), 10
+                )
+            )
+            
+            # Magnetometer data (filtered)
+            self.subscriptions.append(
+                self.node.create_subscription(
+                    MagneticField, f"{namespace}/imu/mag_field",
+                    lambda msg, cid=car_id: self._magnetometer_callback(msg, cid), 10
                 )
             )
     
@@ -198,6 +215,18 @@ class RosDataManager:
         """Handle joint state data."""
         if car_id in self.cars:
             self.cars[car_id].joint_states = msg
+            self._update_connection_status(car_id)
+    
+    def _edition_callback(self, msg: Float32, car_id: int):
+        """Handle robot edition/version data."""
+        if car_id in self.cars:
+            self.cars[car_id].edition = msg.data
+            self._update_connection_status(car_id)
+    
+    def _magnetometer_callback(self, msg: MagneticField, car_id: int):
+        """Handle magnetometer data."""
+        if car_id in self.cars:
+            self.cars[car_id].magnetometer_data = msg
             self._update_connection_status(car_id)
     
     def _update_connection_status(self, car_id: int):
