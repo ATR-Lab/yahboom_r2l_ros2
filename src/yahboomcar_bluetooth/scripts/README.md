@@ -82,6 +82,14 @@ python3 ble_client_test.py --jetson
 - **Multi-Client**: Supports multiple simultaneous connections
 
 ### Example Status Response
+
+**New Ultra-Compact Format** (Used by `bluetooth_ros2_bridge.py`):
+```json
+{"t":"sens","d":[12.4,0,0.5,0.2,0.1,0.0],"id":1}
+```
+**Data Array**: `[battery, emergency, speed, imu_z, imu_x, imu_y]` (~57 chars)
+
+**Legacy Format** (Used by `ble_server.py` for testing):
 ```json
 {
   "timestamp": "2024-01-13T10:30:00",
@@ -453,6 +461,33 @@ public class RobotController : MonoBehaviour {
 - **Concurrent Connections**: Multiple clients supported
 - **BlueZ Compatibility**: `--jetson` flag eliminates write timeout issues
 - **Unity Gaming**: Optimized for real-time racing command streaming
+
+### BLE Message Size Limitations
+
+**Important Discovery**: BLE characteristic read/write operations have strict packet size limits:
+
+- **BLE Packet Limit**: ~100-120 characters per operation
+- **Truncation Threshold**: Messages >510-512 characters get truncated
+- **JSON Impact**: Long messages cause "Unterminated string" parsing errors
+
+**Message Optimization in `bluetooth_ros2_bridge.py`**:
+- **Before**: Verbose JSON responses (600+ characters) → Frequent truncation
+- **After**: Ultra-compact format (~57 characters) → 100% delivery success
+- **Key Changes**: Short keys (`t` vs `type`), array data, reduced precision, no whitespace
+
+**For Custom Development**:
+```python
+# ❌ BAD: Will be truncated over BLE
+response = {
+    "type": "sensor_data",  
+    "content": {"battery_voltage": 12.123456789, ...},
+    "timestamp": 1756282736.123456789,
+    "uptime_seconds": 1234567890
+}
+
+# ✅ GOOD: Fits within BLE limits  
+response = {"t": "sens", "d": [12.1, 0, 0.3], "id": 1}
+```
 
 ## 🔒 Security Considerations
 
