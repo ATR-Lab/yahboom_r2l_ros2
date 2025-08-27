@@ -45,7 +45,8 @@ def generate_launch_description():
             ('pub_imu', 'imu/imu_raw'),     # /car_X/imu/imu_raw (raw IMU data)
             ('pub_mag', 'mag/mag_raw'),     # /car_X/mag/mag_raw (raw magnetometer data)
             ('voltage', 'voltage'),         # /car_X/voltage (battery data)
-            ('joint_states', 'joint_states') # /car_X/joint_states (joint position data)
+            ('joint_states', 'joint_states'), # /car_X/joint_states (joint position data)
+            ('edition', 'edition')          # /car_X/edition (robot version info)
         ]
     )
 
