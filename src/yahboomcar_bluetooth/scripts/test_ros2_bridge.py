@@ -118,10 +118,30 @@ class BridgeTestClient:
             print("Scanning for Bluetooth ROS2 bridge devices...")
             devices = await BleakScanner.discover(timeout=10.0)
             
+            # 🔧 DEBUG: Show all discovered devices to diagnose truncation
+            print(f"📱 DEBUG: Found {len(devices)} total BLE devices:")
+            for i, device in enumerate(devices[:15]):  # Show first 15
+                name = device.name or "No Name"
+                print(f"   {i+1:2d}. '{name}' ({device.address}) RSSI: {device.rssi}dBm")
+            print()
+            
             bridge_devices = [d for d in devices if d.name and TARGET_DEVICE_PATTERN in d.name]
+            
+            # 🔧 DEBUG: Also check for partial matches (truncation handling)
+            partial_matches = [d for d in devices if d.name and "Yahboom" in d.name]
+            if partial_matches and not bridge_devices:
+                print(f"🔍 DEBUG: Found {len(partial_matches)} 'Yahboom' devices (possible truncation):")
+                for device in partial_matches:
+                    print(f"   • '{device.name}' - Length: {len(device.name)} chars")
+                print()
             
             if not bridge_devices:
                 print(f"❌ No bridge devices found (looking for '{TARGET_DEVICE_PATTERN}')")
+                if partial_matches:
+                    print(f"💡 HINT: Found Yahboom devices but names don't match exactly")
+                    print(f"   This suggests BLE name truncation (18 chars → ~12 chars)")
+                    print(f"   Expected: 'YahboomRacer_Car1' (18 chars)")
+                    print(f"   Actual: '{partial_matches[0].name}' ({len(partial_matches[0].name)} chars)")
                 print("Make sure the bridge is running:")
                 print("  ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge")
                 return False
