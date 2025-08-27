@@ -223,10 +223,76 @@ class BluetoothROS2Bridge(Node):
         try:
             command = json.loads(json_str)
             
-            if command.get('msg_type') != 'robot_command':
-                self.get_logger().warn(f"Unknown message type: {command.get('msg_type')}")
+            # Handle new shorter format: {"cmd": "move", "lin": [x,y,z], "ang": [x,y,z]}
+            if command.get('cmd') == 'move':
+                return self._process_short_movement_command(command)
+            
+            # Handle original format: {"msg_type": "robot_command", "data": {...}}
+            elif command.get('msg_type') == 'robot_command':
+                return self._process_long_movement_command(command)
+            
+            else:
+                self.get_logger().warn(f"Unknown command format: {list(command.keys())}")
                 return None
             
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f"Invalid JSON from AR app: {e}")
+            return {
+                "type": "json_error",
+                "content": f"Invalid JSON: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _process_short_movement_command(self, command: dict) -> Optional[Dict]:
+        """Process shortened movement command: {"cmd": "move", "lin": [x,y,z], "ang": [x,y,z]}"""
+        try:
+            # Extract linear and angular arrays
+            linear_array = command.get('lin', [0.0, 0.0, 0.0])
+            angular_array = command.get('ang', [0.0, 0.0, 0.0])
+            
+            # Ensure arrays have 3 elements
+            if len(linear_array) < 3:
+                linear_array.extend([0.0] * (3 - len(linear_array)))
+            if len(angular_array) < 3:
+                angular_array.extend([0.0] * (3 - len(angular_array)))
+            
+            # Create and publish Twist message
+            twist_msg = Twist()
+            twist_msg.linear.x = float(linear_array[0])
+            twist_msg.linear.y = float(linear_array[1])  
+            twist_msg.linear.z = float(linear_array[2])
+            twist_msg.angular.x = float(angular_array[0])
+            twist_msg.angular.y = float(angular_array[1])
+            twist_msg.angular.z = float(angular_array[2])
+            
+            # Publish to robot
+            self.cmd_vel_publisher.publish(twist_msg)
+            self.robot_sensors['speed'] = abs(twist_msg.linear.x)  # Update current speed
+            
+            self.get_logger().debug(
+                f"Published short cmd_vel: linear=({twist_msg.linear.x:.2f}, {twist_msg.linear.y:.2f}), "
+                f"angular={twist_msg.angular.z:.2f}"
+            )
+            
+            # Handle game effects if present
+            game_effects = command.get('fx', {})
+            if game_effects:
+                self.get_logger().debug(f"Game effects: {game_effects}")
+            
+            # Fire-and-forget: No response needed for movement commands
+            return None
+            
+        except (ValueError, IndexError, KeyError) as e:
+            self.get_logger().error(f"Error processing short movement command: {e}")
+            return {
+                "type": "error",
+                "content": f"Invalid movement data: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _process_long_movement_command(self, command: dict) -> Optional[Dict]:
+        """Process original movement command: {"msg_type": "robot_command", "data": {...}}"""
+        try:
             # Extract movement data
             data = command.get('data', {})
             movement = data.get('movement', {})
@@ -250,7 +316,7 @@ class BluetoothROS2Bridge(Node):
                 self.robot_sensors['speed'] = abs(twist_msg.linear.x)  # Update current speed
                 
                 self.get_logger().debug(
-                    f"Published cmd_vel: linear=({twist_msg.linear.x:.2f}, {twist_msg.linear.y:.2f}), "
+                    f"Published long cmd_vel: linear=({twist_msg.linear.x:.2f}, {twist_msg.linear.y:.2f}), "
                     f"angular={twist_msg.angular.z:.2f}"
                 )
             
@@ -262,11 +328,11 @@ class BluetoothROS2Bridge(Node):
             # Fire-and-forget: No response needed for movement commands
             return None
             
-        except json.JSONDecodeError as e:
-            self.get_logger().error(f"Invalid JSON from AR app: {e}")
+        except (ValueError, KeyError) as e:
+            self.get_logger().error(f"Error processing long movement command: {e}")
             return {
-                "type": "json_error",
-                "content": f"Invalid JSON: {str(e)}",
+                "type": "error", 
+                "content": f"Invalid movement data: {str(e)}",
                 "timestamp": datetime.now().isoformat()
             }
     

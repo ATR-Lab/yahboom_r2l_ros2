@@ -258,44 +258,31 @@ class BridgeTestClient:
         print(f"\n📱 Test 4: JSON Commands (AR App Format)")
         print("-" * 30)
         
+        # Shortened JSON format to test length limit hypothesis
+        # Format: {"cmd": "move", "lin": [x, y, z], "ang": [x, y, z]}
         test_commands = [
             {
-                "msg_type": "robot_command",
-                "data": {
-                    "movement": {
-                        "linear": {"x": 0.5, "y": 0.0},
-                        "angular": {"z": 0.3}
-                    }
-                }
+                "cmd": "move",
+                "lin": [0.5, 0.0, 0.0],
+                "ang": [0.0, 0.0, 0.3]
             },
             {
-                "msg_type": "robot_command", 
-                "data": {
-                    "movement": {
-                        "linear": {"x": -0.2, "y": 0.0},
-                        "angular": {"z": -0.5}
-                    },
-                    "game_effects": {
-                        "power_up": "speed_boost",
-                        "duration": 2.0
-                    }
-                }
+                "cmd": "move", 
+                "lin": [-0.2, 0.0, 0.0],
+                "ang": [0.0, 0.0, -0.5],
+                "fx": {"boost": 1, "dur": 2.0}
             },
             {
-                "msg_type": "robot_command",
-                "data": {
-                    "movement": {
-                        "linear": {"x": 0.0, "y": 0.0},
-                        "angular": {"z": 0.0}
-                    }
-                }
+                "cmd": "move",
+                "lin": [0.0, 0.0, 0.0],
+                "ang": [0.0, 0.0, 0.0]
             }
         ]
         
         for i, command in enumerate(test_commands, 1):
             try:
-                print(f"JSON Command {i}: linear_x={command['data']['movement']['linear']['x']}, "
-                      f"angular_z={command['data']['movement']['angular']['z']}")
+                print(f"JSON Command {i}: linear_x={command['lin'][0]}, "
+                      f"angular_z={command['ang'][2]}")
                 
                 json_str = json.dumps(command)
                 response_mode = not self.jetson_mode  # False for Jetson, True for others
@@ -354,13 +341,9 @@ class BridgeTestClient:
                 angular_z = 0.5 * (-1 if i % 4 < 2 else 1)  # Alternate steering
                 
                 command = {
-                    "msg_type": "robot_command",
-                    "data": {
-                        "movement": {
-                            "linear": {"x": linear_x},
-                            "angular": {"z": angular_z}
-                        }
-                    }
+                    "cmd": "move",
+                    "lin": [linear_x, 0.0, 0.0],
+                    "ang": [0.0, 0.0, angular_z]
                 }
                 
                 json_str = json.dumps(command)
