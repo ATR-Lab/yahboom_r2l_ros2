@@ -310,13 +310,15 @@ class BridgeTestClient:
                     data_type = data.get('type', data.get('t', 'unknown'))
                     
                     if data_type == 'sens':
-                        # New short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], ...}
+                        # Ultra-short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id}
                         sensor_array = data.get('d', [0, 0, 0, 0, 0, 0])
+                        car_id = data.get('id', 0)
                         battery = sensor_array[0] if len(sensor_array) > 0 else 0
                         emergency = bool(sensor_array[1]) if len(sensor_array) > 1 else False
                         speed = sensor_array[2] if len(sensor_array) > 2 else 0
-                        print(f"Read {i+1}: Type={data_type}, Battery={battery:.1f}V, "
-                              f"Speed={speed:.2f}, Emergency={emergency}")
+                        imu_z = sensor_array[3] if len(sensor_array) > 3 else 0
+                        print(f"Read {i+1}: Car{car_id}, Battery={battery:.1f}V, "
+                              f"Speed={speed:.1f}, Emergency={emergency}, IMU_Z={imu_z:.2f}")
                     else:
                         # Old format or other data
                         content = data.get('content', {})
@@ -375,7 +377,7 @@ class BridgeTestClient:
                 data_type = data.get('type', data.get('t', 'unknown'))
                 
                 if data_type == 'sens':
-                    # New short format
+                    # Ultra-short format
                     sensor_array = data.get('d', [0, 0, 0, 0, 0, 0])
                     final_speed = sensor_array[2] if len(sensor_array) > 2 else 0
                 else:

@@ -189,21 +189,29 @@ class BluetoothROS2Bridge(Node):
         self.robot_sensors['timestamp'] = self.get_clock().now().nanoseconds / 1e9
     
     def _create_short_sensor_response(self) -> Dict:
-        """Create shortened sensor response to fit BLE packet limits."""
-        # Short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id, "up": uptime}
+        """
+        Create ultra-short sensor response to fit BLE packet limits.
+        
+        BLE Characteristic Write/Read Limitation:
+        - Discovered through testing: ~100-120 character limit per BLE packet
+        - Longer responses get truncated at char 510-512 (likely due to buffer limits)
+        - Original format (600+ chars) → Shortened to ~60 chars maximum
+        
+        Format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id}
+        """
         return {
             "t": "sens",
             "d": [
-                round(self.robot_sensors['battery_voltage'], 2),
+                round(self.robot_sensors['battery_voltage'], 1),  # Reduced precision
                 1 if self.robot_sensors['emergency_state'] else 0,
-                round(self.robot_sensors['speed'], 2),
-                round(self.robot_sensors['imu']['angular_velocity']['z'], 3),
-                round(self.robot_sensors['imu']['linear_acceleration']['x'], 3),
-                round(self.robot_sensors['imu']['linear_acceleration']['y'], 3)
+                round(self.robot_sensors['speed'], 1),  # Reduced precision
+                round(self.robot_sensors['imu']['angular_velocity']['z'], 2),  # Reduced precision
+                round(self.robot_sensors['imu']['linear_acceleration']['x'], 2),
+                round(self.robot_sensors['imu']['linear_acceleration']['y'], 2)
             ],
             "id": self.car_id,
-            "up": int(time.time() - self.start_time),
-            "cmd": self.command_count
+            # Removed uptime and command count to stay under BLE packet limit
+            # Original uptime values were 10+ digits, making JSON too long
         }
     
     # AR App Command Processing
