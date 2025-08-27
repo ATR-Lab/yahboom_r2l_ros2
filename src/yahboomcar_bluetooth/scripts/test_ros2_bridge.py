@@ -237,8 +237,18 @@ class BridgeTestClient:
                 # Read response (could be command response or sensor data)
                 response_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
                 if response_data:
-                    data = json.loads(response_data.decode('utf-8'))
-                    response_type = data.get('type', data.get('t', 'unknown'))
+                    # DEBUG: Show raw data received
+                    raw_str = response_data.decode('utf-8')
+                    print(f"   📥 Raw received: '{raw_str}' (length: {len(raw_str)})")
+                    
+                    try:
+                        data = json.loads(raw_str)
+                        response_type = data.get('type', data.get('t', 'unknown'))
+                    except json.JSONDecodeError as e:
+                        print(f"   ❌ JSON parse error at char {e.pos}: {e.msg}")
+                        print(f"   📄 Truncated JSON: '{raw_str}'")
+                        self.test_results["errors"].append(f"Simple command '{command}': JSON parse error at char {e.pos}")
+                        continue
                     
                     if command in ["ping", "hello", "status"] and (response_type.endswith('_response') or response_type in ['ping', 'hello', 'sens']):
                         print(f"   ✅ Command response received: {response_type}")
@@ -306,8 +316,18 @@ class BridgeTestClient:
                 sensor_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
                 
                 if sensor_data:
-                    data = json.loads(sensor_data.decode('utf-8'))
-                    data_type = data.get('type', data.get('t', 'unknown'))
+                    # DEBUG: Show raw sensor data received
+                    raw_str = sensor_data.decode('utf-8')
+                    print(f"   📥 Raw sensor data: '{raw_str[:100]}{'...' if len(raw_str) > 100 else ''}' (length: {len(raw_str)})")
+                    
+                    try:
+                        data = json.loads(raw_str)
+                        data_type = data.get('type', data.get('t', 'unknown'))
+                    except json.JSONDecodeError as e:
+                        print(f"   ❌ JSON parse error at char {e.pos}: {e.msg}")
+                        print(f"   📄 Truncated JSON: '{raw_str}'")
+                        self.test_results["errors"].append(f"Sensor read {i+1}: JSON parse error at char {e.pos}")
+                        continue
                     
                     if data_type == 'sens':
                         # Ultra-short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id}
@@ -373,8 +393,18 @@ class BridgeTestClient:
             await asyncio.sleep(0.5)
             sensor_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
             if sensor_data:
-                data = json.loads(sensor_data.decode('utf-8'))
-                data_type = data.get('type', data.get('t', 'unknown'))
+                # DEBUG: Show raw final sensor data
+                raw_str = sensor_data.decode('utf-8')
+                print(f"   📥 Final sensor data: '{raw_str[:100]}{'...' if len(raw_str) > 100 else ''}' (length: {len(raw_str)})")
+                
+                try:
+                    data = json.loads(raw_str)
+                    data_type = data.get('type', data.get('t', 'unknown'))
+                except json.JSONDecodeError as e:
+                    print(f"   ❌ Final sensor JSON parse error at char {e.pos}: {e.msg}")
+                    print(f"   📄 Truncated JSON: '{raw_str}'")
+                    self.test_results["errors"].append(f"High-frequency final read: JSON parse error at char {e.pos}")
+                    return
                 
                 if data_type == 'sens':
                     # Ultra-short format

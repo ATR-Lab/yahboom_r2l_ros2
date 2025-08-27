@@ -199,7 +199,7 @@ class BluetoothROS2Bridge(Node):
         
         Format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id}
         """
-        return {
+        response = {
             "t": "sens",
             "d": [
                 round(self.robot_sensors['battery_voltage'], 1),  # Reduced precision
@@ -213,6 +213,11 @@ class BluetoothROS2Bridge(Node):
             # Removed uptime and command count to stay under BLE packet limit
             # Original uptime values were 10+ digits, making JSON too long
         }
+        
+        # DEBUG: Log the actual sensor response being generated
+        json_preview = json.dumps(response)
+        self.get_logger().info(f"📊 Generated sensor response: {json_preview} (length: {len(json_preview)})")
+        return response
     
     # AR App Command Processing
     def _process_ar_command(self, command_str: str) -> Optional[Dict]:
@@ -385,6 +390,9 @@ class BluetoothROS2Bridge(Node):
                 
                 self.cmd_vel_publisher.publish(twist_msg)
                 self.robot_sensors['speed'] = abs(twist_msg.linear.x)
+                
+                # DEBUG: Log fire-and-forget behavior
+                self.get_logger().info(f"🔄 Fire-and-forget command: {command} → Will use sensor data on next read")
                 return None  # Fire-and-forget
         
         # Status queries - return sensor data
@@ -496,20 +504,24 @@ class BluetoothROS2Bridge(Node):
                 response_data = self.pending_response
                 self.pending_response = None  # Clear after sending
                 
-                self.get_logger().info(f"📤 Sending command response: {response_data['type']}")
+                response_type = response_data.get('type', response_data.get('t', 'unknown'))
+                self.get_logger().info(f"📤 Using pending response: {response_type}")
             else:
                 # Default: return current robot sensor data in short format
+                self.get_logger().info(f"📤 Using default sensor data path")
                 response_data = self._create_short_sensor_response()
-                self.get_logger().debug(f"📤 Sending sensor data")
             
             # Convert to JSON and return as bytearray (no pretty printing to save space)
             response_json = json.dumps(response_data)
             response_bytes = bytearray(response_json.encode('utf-8'))
             
+            # DEBUG: Log the actual response being sent
+            self.get_logger().info(f"📤 Sending response: {response_json[:100]}{'...' if len(response_json) > 100 else ''}")
+            self.get_logger().info(f"📤 Response length: {len(response_bytes)} bytes")
+            
             # Update the characteristic value
             characteristic.value = response_bytes
             
-            self.get_logger().debug(f"📤 Response sent ({len(response_bytes)} bytes)")
             return response_bytes
             
         except Exception as e:
@@ -543,9 +555,17 @@ class BluetoothROS2Bridge(Node):
             self.pending_response = response
             
             if response:
-                self.get_logger().info(f"🔄 Command processed - Response ready: {response['type']}")
+                response_type = response.get('type', response.get('t', 'unknown'))
+                self.get_logger().info(f"🔄 Command processed - Response ready: {response_type}")
             else:
-                self.get_logger().debug(f"🔄 Command processed - Fire-and-forget (no response)")
+                self.get_logger().info(f"🔄 Command processed - Fire-and-forget (will use sensor data on next read)")
+                
+            # DEBUG: Log what's stored in pending_response
+            if self.pending_response:
+                pending_preview = json.dumps(self.pending_response)[:50]
+                self.get_logger().info(f"📝 Stored pending_response: {pending_preview}...")
+            else:
+                self.get_logger().info(f"📝 Stored pending_response: None (will use default sensor data)")
                 
             self.get_logger().debug("✅ Write request processed successfully")
             
