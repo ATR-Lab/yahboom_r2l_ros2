@@ -203,6 +203,54 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2 jetson_mod
 | Jetson Support | None | Full BlueZ 5.53 compatibility |
 | Platform Support | Linux only | Linux + Jetson Nano + Ubuntu PC |
 
+## Troubleshooting
+
+### macOS Bluetooth Device Name Caching
+
+**Issue**: Test scripts see old cached device names instead of current names
+
+**Problem**: `test_ros2_bridge.py` finds "YahboomRobot" while nRF Connect shows "YahboomRacer_Car1"
+
+**Cause**: macOS Core Bluetooth framework caches BLE device information across multiple database files
+
+**Solution**: Comprehensive Bluetooth cache clearing
+
+```bash
+# Step 1: Standard cache clearing (often insufficient alone)
+sudo pkill bluetoothd
+sudo rm -rf /Library/Preferences/com.apple.Bluetooth.plist  
+rm -rf ~/Library/Preferences/com.apple.bluetoothuserd.plist
+
+# Step 2: Clear BLE device database files (CRITICAL for device name caching)
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.other.db*
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.paired.db*
+sudo rm -f /Library/Bluetooth/Library/Preferences/com.apple.MobileBluetooth.devices.plist
+
+# Step 3: Restart Bluetooth daemon
+sudo pkill bluetoothd  # Will auto-restart
+
+# Step 4: REBOOT (Required - changes need system restart)
+sudo reboot
+
+# After reboot, test should find correct device names:
+python3 test_ros2_bridge.py
+# Should discover "YahboomRacer_Car1" instead of cached "YahboomRobot"
+```
+
+**Note**: The hidden Bluetooth debug menu (Option+Shift+Bluetooth icon) was removed in macOS Sequoia 15.5+, making manual cache clearing the only reliable solution.
+
+### Jetson Nano Compatibility
+
+For Jetson Nano deployments, ensure `jetson_mode:=true` to prevent BLE write timeout issues:
+
+```bash
+# Jetson Nano server
+ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge --jetson --ros-args -p car_id:=1
+
+# Test client connecting to Jetson server
+python3 test_ros2_bridge.py --jetson
+```
+
 ## Next Steps
 
 1. **Test with real robot hardware** - validate ROS2 topic integration

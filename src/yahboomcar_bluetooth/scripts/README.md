@@ -328,6 +328,37 @@ python3 ble_client_test.py --jetson
 # - No Unity code changes required - server adapts automatically
 ```
 
+### macOS Bluetooth Device Name Caching
+**Issue**: Python BLE scripts see old device names (e.g. "YahboomRobot") while other apps see correct names (e.g. "YahboomRacer_Car1")
+```bash
+# Cause: macOS Core Bluetooth framework caches device information in multiple locations
+# Standard cache clearing may not clear all BLE device databases
+
+# Solution: Comprehensive Bluetooth cache clearing
+# Step 1: Standard cache clearing (often insufficient alone)
+sudo pkill bluetoothd
+sudo rm -rf /Library/Preferences/com.apple.Bluetooth.plist  
+rm -rf ~/Library/Preferences/com.apple.bluetoothuserd.plist
+
+# Step 2: Clear BLE device database files (KEY STEP for device name caching)
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.other.db*
+sudo rm -f /Library/Bluetooth/com.apple.MobileBluetooth.ledevices.paired.db*
+sudo rm -f /Library/Bluetooth/Library/Preferences/com.apple.MobileBluetooth.devices.plist
+
+# Step 3: Restart Bluetooth daemon
+sudo pkill bluetoothd  # Will auto-restart
+
+# Step 4: REBOOT (Critical - changes require restart)
+sudo reboot
+
+# Note: The hidden Bluetooth debug menu (Option+Shift+Bluetooth icon) 
+# was removed in macOS Sequoia 15.5+, so manual cache clearing is required.
+
+# After reboot, test your script - should now see correct device names:
+python3 ble_client_test.py
+# Should find "YahboomRacer_Car1" instead of cached "YahboomRobot"
+```
+
 ## 🎯 Use Cases
 
 ### Robot Control
