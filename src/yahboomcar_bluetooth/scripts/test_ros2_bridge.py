@@ -1,0 +1,472 @@
+#!/usr/bin/env python3
+
+"""
+Test Script for New Bluetooth ROS2 Bridge
+==========================================
+
+This script tests the new bluetooth_ros2_bridge.py to ensure it works correctly
+with existing BLE test clients and provides proper ROS2 integration.
+
+Test Coverage:
+- BLE server connectivity (using ble_client_test.py logic)
+- ROS2 topic publishing (cmd_vel commands)
+- Sensor data feedback via BLE reads
+- AR app JSON command format
+- Simple command format (for compatibility)
+
+Usage:
+    # Terminal 1: Start the bridge
+    ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge --ros-args -p car_id:=1
+    
+    # Terminal 2: Run this test
+    python3 test_ros2_bridge.py
+    
+    # Terminal 3: Monitor ROS2 topics
+    ros2 topic echo /car_1/cmd_vel
+
+Requirements:
+    pip install -r bluetooth_requirements.txt
+
+Author: Yahboom R2L Racing Team  
+"""
+
+import argparse
+import asyncio
+import json
+import time
+from datetime import datetime
+from typing import Optional
+
+try:
+    from bleak import BleakScanner, BleakClient
+    from bleak.backends.device import BLEDevice
+    BLEAK_AVAILABLE = True
+except ImportError:
+    BLEAK_AVAILABLE = False
+    print("❌ bleak library not available. Install with: pip install -r bluetooth_requirements.txt")
+
+# Bridge Configuration (must match bluetooth_ros2_bridge.py)
+TARGET_DEVICE_PATTERN = "YahboomRacer_Car"  
+SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
+COMMAND_CHAR_UUID = "87654321-4321-4321-4321-cba987654321"  # Write commands
+SENSOR_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Read sensors
+
+
+class BridgeTestClient:
+    """Test client for the new Bluetooth ROS2 bridge."""
+    
+    def __init__(self, jetson_mode=False):
+        self.device: Optional[BLEDevice] = None
+        self.client: Optional[BleakClient] = None
+        self.jetson_mode = jetson_mode
+        self.test_results = {
+            "discovery": False,
+            "connection": False,
+            "simple_commands": 0,
+            "json_commands": 0,
+            "sensor_reads": 0,
+            "errors": []
+        }
+    
+    async def run_test_suite(self):
+        """Run comprehensive test of the new bridge."""
+        print("🧪 Testing New Bluetooth ROS2 Bridge")
+        print("=" * 50)
+        print()
+        
+        if not BLEAK_AVAILABLE:
+            print("❌ Cannot run test - bleak library required")
+            return False
+        
+        try:
+            # Test 1: Device Discovery
+            if not await self._test_discovery():
+                return False
+            
+            # Test 2: Connection
+            if not await self._test_connection():
+                return False
+            
+            # Test 3: Simple Commands (ble_server.py compatibility)
+            await self._test_simple_commands()
+            
+            # Test 4: JSON Commands (AR app format)
+            await self._test_json_commands()
+            
+            # Test 5: Sensor Data Reading
+            await self._test_sensor_feedback()
+            
+            # Test 6: High-Frequency Commands (racing simulation)
+            await self._test_high_frequency_commands()
+            
+        except Exception as e:
+            print(f"❌ Test suite failed: {e}")
+            self.test_results["errors"].append(str(e))
+            return False
+        finally:
+            await self._cleanup()
+        
+        # Print results
+        self._print_results()
+        return self._evaluate_success()
+    
+    async def _test_discovery(self):
+        """Test device discovery for bridge."""
+        print("🔍 Test 1: Device Discovery")
+        print("-" * 30)
+        
+        try:
+            print("Scanning for Bluetooth ROS2 bridge devices...")
+            devices = await BleakScanner.discover(timeout=10.0)
+            
+            bridge_devices = [d for d in devices if d.name and TARGET_DEVICE_PATTERN in d.name]
+            
+            if not bridge_devices:
+                print(f"❌ No bridge devices found (looking for '{TARGET_DEVICE_PATTERN}')")
+                print("Make sure the bridge is running:")
+                print("  ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge")
+                return False
+            
+            self.device = bridge_devices[0]  # Use first found device
+            print(f"✅ Found bridge device: {self.device.name}")
+            print(f"   Address: {self.device.address}")
+            print(f"   RSSI: {self.device.rssi} dBm")
+            
+            self.test_results["discovery"] = True
+            return True
+            
+        except Exception as e:
+            print(f"❌ Discovery failed: {e}")
+            self.test_results["errors"].append(f"Discovery: {e}")
+            return False
+    
+    async def _test_connection(self):
+        """Test connection to bridge."""
+        print(f"\n🔌 Test 2: Connection")
+        print("-" * 30)
+        
+        try:
+            self.client = BleakClient(self.device)
+            await self.client.connect()
+            
+            if not self.client.is_connected:
+                print("❌ Connection failed")
+                return False
+            
+            print("✅ Connected successfully")
+            
+            # Verify characteristics
+            services = self.client.services
+            target_service = None
+            
+            for service in services:
+                if service.uuid.lower() == SERVICE_UUID.lower():
+                    target_service = service
+                    break
+            
+            if not target_service:
+                print(f"❌ Service not found: {SERVICE_UUID}")
+                return False
+            
+            # Check characteristics
+            command_char = None
+            sensor_char = None
+            
+            for char in target_service.characteristics:
+                if char.uuid.lower() == COMMAND_CHAR_UUID.lower():
+                    command_char = char
+                elif char.uuid.lower() == SENSOR_CHAR_UUID.lower():
+                    sensor_char = char
+            
+            if not command_char:
+                print(f"❌ Command characteristic not found: {COMMAND_CHAR_UUID}")
+                return False
+                
+            if not sensor_char:
+                print(f"❌ Sensor characteristic not found: {SENSOR_CHAR_UUID}")
+                return False
+            
+            print("✅ All characteristics found")
+            print(f"   Command: {COMMAND_CHAR_UUID} (Properties: {command_char.properties})")
+            print(f"   Sensor:  {SENSOR_CHAR_UUID} (Properties: {sensor_char.properties})")
+            
+            self.test_results["connection"] = True
+            return True
+            
+        except Exception as e:
+            print(f"❌ Connection failed: {e}")
+            self.test_results["errors"].append(f"Connection: {e}")
+            return False
+    
+    async def _test_simple_commands(self):
+        """Test simple text commands (ble_server.py compatibility)."""
+        print(f"\n📝 Test 3: Simple Commands")
+        print("-" * 30)
+        
+        test_commands = [
+            "ping",
+            "hello", 
+            "status",
+            "move_forward",
+            "cmd_vel:0.3,0.5",
+            "emergency_stop"
+        ]
+        
+        for command in test_commands:
+            try:
+                print(f"Testing: '{command}'")
+                
+                # Send command
+                response_mode = not self.jetson_mode  # False for Jetson, True for others
+                await self.client.write_gatt_char(COMMAND_CHAR_UUID, command.encode('utf-8'), response=response_mode)
+                await asyncio.sleep(0.2)  # Let bridge process
+                
+                # For query commands, check if we can read sensor data
+                if command in ["ping", "hello", "status"]:
+                    sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
+                    if sensor_data:
+                        data = json.loads(sensor_data.decode('utf-8'))
+                        print(f"   ✅ Response received: {data.get('type', 'unknown')}")
+                    else:
+                        print(f"   ⚠️  No sensor data available")
+                else:
+                    print(f"   ✅ Command sent (fire-and-forget)")
+                
+                self.test_results["simple_commands"] += 1
+                
+            except Exception as e:
+                print(f"   ❌ Command failed: {e}")
+                self.test_results["errors"].append(f"Simple command '{command}': {e}")
+    
+    async def _test_json_commands(self):
+        """Test JSON commands (AR app format)."""
+        print(f"\n📱 Test 4: JSON Commands (AR App Format)")
+        print("-" * 30)
+        
+        test_commands = [
+            {
+                "msg_type": "robot_command",
+                "data": {
+                    "movement": {
+                        "linear": {"x": 0.5, "y": 0.0},
+                        "angular": {"z": 0.3}
+                    }
+                }
+            },
+            {
+                "msg_type": "robot_command", 
+                "data": {
+                    "movement": {
+                        "linear": {"x": -0.2, "y": 0.0},
+                        "angular": {"z": -0.5}
+                    },
+                    "game_effects": {
+                        "power_up": "speed_boost",
+                        "duration": 2.0
+                    }
+                }
+            },
+            {
+                "msg_type": "robot_command",
+                "data": {
+                    "movement": {
+                        "linear": {"x": 0.0, "y": 0.0},
+                        "angular": {"z": 0.0}
+                    }
+                }
+            }
+        ]
+        
+        for i, command in enumerate(test_commands, 1):
+            try:
+                print(f"JSON Command {i}: linear_x={command['data']['movement']['linear']['x']}, "
+                      f"angular_z={command['data']['movement']['angular']['z']}")
+                
+                json_str = json.dumps(command)
+                response_mode = not self.jetson_mode  # False for Jetson, True for others
+                await self.client.write_gatt_char(COMMAND_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
+                await asyncio.sleep(0.1)  # Brief delay
+                
+                print(f"   ✅ JSON command sent")
+                self.test_results["json_commands"] += 1
+                
+            except Exception as e:
+                print(f"   ❌ JSON command failed: {e}")
+                self.test_results["errors"].append(f"JSON command {i}: {e}")
+    
+    async def _test_sensor_feedback(self):
+        """Test sensor data reading."""
+        print(f"\n📊 Test 5: Sensor Data Reading")
+        print("-" * 30)
+        
+        try:
+            for i in range(5):
+                sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
+                
+                if sensor_data:
+                    data = json.loads(sensor_data.decode('utf-8'))
+                    content = data.get('content', {})
+                    
+                    print(f"Read {i+1}: Battery={content.get('battery_voltage', 0):.1f}V, "
+                          f"Speed={content.get('speed', 0):.2f}, "
+                          f"Emergency={content.get('emergency_state', False)}")
+                    
+                    self.test_results["sensor_reads"] += 1
+                else:
+                    print(f"Read {i+1}: No data")
+                
+                await asyncio.sleep(0.5)
+            
+            print("✅ Sensor reading test completed")
+            
+        except Exception as e:
+            print(f"❌ Sensor reading failed: {e}")
+            self.test_results["errors"].append(f"Sensor reading: {e}")
+    
+    async def _test_high_frequency_commands(self):
+        """Test high-frequency command sending (racing simulation)."""
+        print(f"\n🏎️  Test 6: High-Frequency Commands (Racing Simulation)")
+        print("-" * 30)
+        
+        try:
+            print("Sending 20 rapid movement commands...")
+            start_time = time.time()
+            
+            for i in range(20):
+                # Simulate racing movement - varying speed and steering
+                linear_x = 0.3 + 0.2 * (i % 5) / 5.0  # 0.3 to 0.5
+                angular_z = 0.5 * (-1 if i % 4 < 2 else 1)  # Alternate steering
+                
+                command = {
+                    "msg_type": "robot_command",
+                    "data": {
+                        "movement": {
+                            "linear": {"x": linear_x},
+                            "angular": {"z": angular_z}
+                        }
+                    }
+                }
+                
+                json_str = json.dumps(command)
+                response_mode = not self.jetson_mode  # False for Jetson, True for others
+                await self.client.write_gatt_char(COMMAND_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
+                
+                # No delay between commands - test rapid-fire capability
+            
+            elapsed = time.time() - start_time
+            rate = 20 / elapsed
+            
+            print(f"✅ Sent 20 commands in {elapsed:.2f}s ({rate:.1f} commands/sec)")
+            
+            # Read final sensor state
+            await asyncio.sleep(0.5)
+            sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
+            if sensor_data:
+                data = json.loads(sensor_data.decode('utf-8'))
+                final_speed = data.get('content', {}).get('speed', 0)
+                print(f"Final robot speed: {final_speed:.2f} m/s")
+            
+        except Exception as e:
+            print(f"❌ High-frequency test failed: {e}")
+            self.test_results["errors"].append(f"High-frequency: {e}")
+    
+    async def _cleanup(self):
+        """Clean up connection."""
+        if self.client and self.client.is_connected:
+            try:
+                await self.client.disconnect()
+                print("\n🔌 Disconnected from bridge")
+            except:
+                pass
+    
+    def _print_results(self):
+        """Print test results summary."""
+        print("\n" + "=" * 50)
+        print("🧪 Test Results Summary")  
+        print("=" * 50)
+        
+        results = self.test_results
+        
+        print(f"\n📊 Test Statistics:")
+        print(f"   Device Discovery: {'✅' if results['discovery'] else '❌'}")
+        print(f"   Connection: {'✅' if results['connection'] else '❌'}")
+        print(f"   Simple Commands: {results['simple_commands']} successful")
+        print(f"   JSON Commands: {results['json_commands']} successful") 
+        print(f"   Sensor Reads: {results['sensor_reads']} successful")
+        
+        if results["errors"]:
+            print(f"\n❌ Errors ({len(results['errors'])}):")
+            for error in results["errors"][:5]:  # Show first 5 errors
+                print(f"   • {error}")
+            if len(results["errors"]) > 5:
+                print(f"   • ... and {len(results['errors']) - 5} more")
+        else:
+            print(f"\n✅ No errors detected!")
+    
+    def _evaluate_success(self):
+        """Evaluate if tests were successful."""
+        results = self.test_results
+        
+        # Must have basic connectivity
+        if not results["discovery"] or not results["connection"]:
+            return False
+        
+        # Must have some successful operations  
+        total_operations = results["simple_commands"] + results["json_commands"] + results["sensor_reads"]
+        if total_operations < 5:
+            return False
+        
+        # Error rate should be reasonable
+        error_rate = len(results["errors"]) / max(total_operations, 1)
+        if error_rate > 0.3:  # More than 30% error rate
+            return False
+        
+        return True
+
+
+async def main():
+    """Main test function."""
+    parser = argparse.ArgumentParser(description='Test Bluetooth ROS2 Bridge')
+    parser.add_argument('--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('--jetson', action='store_true', 
+                       help='Enable Jetson Nano compatibility mode (use write-without-response)')
+    args = parser.parse_args()
+    
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+    
+    print("🚀 Starting Bluetooth ROS2 Bridge Test")
+    if args.jetson:
+        print("🤖 Jetson Nano mode: Using write-without-response for compatibility")
+        print("Make sure the bridge is running in another terminal:")
+        print("  ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge --jetson --ros-args -p car_id:=1")
+    else:
+        print("Make sure the bridge is running in another terminal:")
+        print("  ros2 run yahboomcar_bluetooth bluetooth_ros2_bridge --ros-args -p car_id:=1")
+    print()
+    
+    tester = BridgeTestClient(jetson_mode=args.jetson)
+    success = await tester.run_test_suite()
+    
+    if success:
+        print("\n🎉 All tests PASSED! Bridge is working correctly.")
+        print("✅ Ready for iPhone AR app integration!")
+    else:
+        print("\n❌ Some tests FAILED. Check the bridge configuration.")
+        print("💡 Make sure:")
+        print("   1. Bridge node is running with correct car_id")
+        print("   2. bless library is properly installed")  
+        print("   3. Bluetooth permissions are correct")
+    
+    return success
+
+
+if __name__ == '__main__':
+    if BLEAK_AVAILABLE:
+        result = asyncio.run(main())
+        exit(0 if result else 1)
+    else:
+        print("\n❌ Cannot run test without bleak library")
+        print("Install with: pip install -r bluetooth_requirements.txt")
+        exit(1)

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 
 """
-Launch file for Bluetooth Bridge Node
+Launch file for Bluetooth ROS2 Bridge - AR App to Robot Communication
 
-Launches the Bluetooth bridge node with proper car_id and namespace configuration
-for multiplayer racing system integration.
+This launch file starts the new Bluetooth ROS2 bridge that connects
+iPhone AR apps to robot control systems using proven BLE server logic.
 
 Usage:
-    ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1
+    ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py
     ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2
-    
-Author: Yahboom R2L Multiplayer Racing Team
-License: MIT
+
+Features:
+- Starts bluetooth_ros2_bridge node with car_id parameter
+- Configures topic namespacing for multiplayer racing (/car_X/*)
+- Sets up proper node naming for multi-robot scenarios
+
+Author: Yahboom R2L Racing Team
 """
 
 from launch import LaunchDescription
@@ -21,39 +25,42 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Generate launch description for Bluetooth bridge node."""
+    """Generate launch description for Bluetooth ROS2 bridge."""
     
-    # Launch arguments
+    # Declare launch arguments
     car_id_arg = DeclareLaunchArgument(
         'car_id',
         default_value='1',
-        description='Unique car identifier for multiplayer racing (1-4)'
+        description='Car ID for multiplayer racing (1-4)'
     )
     
-    # Get launch configurations
+    jetson_mode_arg = DeclareLaunchArgument(
+        'jetson_mode',
+        default_value='false',
+        description='Enable Jetson Nano compatibility mode (BlueZ 5.53)'
+    )
+    
+    # Get launch configuration
     car_id = LaunchConfiguration('car_id')
+    jetson_mode = LaunchConfiguration('jetson_mode')
     
-    # Create namespace from car_id
-    namespace = ['/car_', car_id]
-    
-    # Bluetooth bridge node
+    # Create the Bluetooth ROS2 bridge node
     bluetooth_bridge_node = Node(
         package='yahboomcar_bluetooth',
-        executable='bluetooth_bridge_node',
-        name='bluetooth_bridge_node',
-        namespace=namespace,
-        output='screen',
+        executable='bluetooth_ros2_bridge',
+        name=['bluetooth_bridge_car', car_id],
+        namespace=['car_', car_id],  # Topics become /car_X/cmd_vel, etc.
         parameters=[{
             'car_id': car_id,
+            'jetson_mode': jetson_mode
         }],
-        # No remapping needed - topics are already correctly named in the node
-        # and will be automatically namespaced to /car_X/cmd_vel, /car_X/voltage, etc.
+        output='screen',
+        emulate_tty=True,
+        arguments=['--ros-args', '--log-level', 'INFO']
     )
     
     return LaunchDescription([
-        # Arguments
         car_id_arg,
-        
-        # Nodes
-        bluetooth_bridge_node,
+        jetson_mode_arg,
+        bluetooth_bridge_node
     ])

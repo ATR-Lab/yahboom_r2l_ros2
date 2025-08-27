@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'bluetooth_bridge_node = yahboomcar_bluetooth.bluetooth_bridge_node:main',
+            'bluetooth_ros2_bridge = yahboomcar_bluetooth.bluetooth_ros2_bridge:main',
         ],
     },
 )

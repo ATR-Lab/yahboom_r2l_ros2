@@ -1,0 +1,554 @@
+#!/usr/bin/env python3
+
+"""
+Bluetooth ROS2 Bridge Node - AR App to Robot Communication
+==========================================================
+
+This node bridges iPhone AR app commands to ROS2 robot control system using
+proven BLE server logic from ble_server.py combined with ROS2 integration.
+
+Architecture:
+iPhone AR App ←→ BLE Server (bless) ←→ This Bridge ←→ ROS2 Topics ←→ Robot
+
+Key Features:
+- Uses proven bless BLE server architecture 
+- Fire-and-forget movement commands (high frequency)
+- Polling-based sensor feedback (AR app controlled frequency)
+- Separate characteristics for commands vs sensor data
+- Multiplayer support (car_id parameter)
+
+Message Flow:
+- AR App → JSON commands → ROS2 cmd_vel → Robot movement
+- Robot → ROS2 sensors → JSON status → AR App (when polled)
+
+Author: Yahboom R2L Racing Team
+Based on: Working ble_server.py + bluetooth_bridge_node.py concepts
+"""
+
+import argparse
+import asyncio
+import json
+import logging
+import threading
+import time
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+import rclpy
+from rclpy.node import Node
+import rclpy.parameter
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Float32, Bool
+from sensor_msgs.msg import Imu
+
+# BLE imports - using proven bless library from ble_server.py
+try:
+    from bless import (
+        BlessServer,
+        BlessGATTCharacteristic,
+        GATTCharacteristicProperties,
+        GATTAttributePermissions,
+    )
+    BLESS_AVAILABLE = True
+except ImportError:
+    BLESS_AVAILABLE = False
+    print("WARNING: bless library not available. Install with: pip install bless")
+
+# BLE Service and Characteristic UUIDs
+SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
+COMMAND_CHAR_UUID = "87654321-4321-4321-4321-cba987654321"  # AR App → Commands
+SENSOR_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Robot → Sensor Data
+
+# Configure logging for BLE operations
+logger = logging.getLogger(__name__)
+
+
+class BluetoothROS2Bridge(Node):
+    """
+    ROS2 node that bridges iPhone AR app to robot using proven BLE server logic.
+    
+    Combines working bless BLE server from ble_server.py with ROS2 integration
+    for reliable AR app to robot communication in racing scenarios.
+    """
+    
+    def __init__(self):
+        super().__init__('bluetooth_ros2_bridge')
+        
+        # Get car_id parameter for multiplayer racing
+        self.declare_parameter('car_id', 1)
+        self.car_id = self.get_parameter('car_id').get_parameter_value().integer_value
+        
+        # Get jetson_mode parameter for Jetson Nano compatibility
+        self.declare_parameter('jetson_mode', False)
+        self.jetson_mode = self.get_parameter('jetson_mode').get_parameter_value().bool_value
+        
+        # Validate car_id (1-4 for racing)
+        if not 1 <= self.car_id <= 4:
+            self.get_logger().error(f"Invalid car_id: {self.car_id}. Must be between 1-4.")
+            raise ValueError(f"car_id must be between 1-4, got {self.car_id}")
+        
+        self.device_name = f"YahboomRacer_Car{self.car_id}"
+        self.get_logger().info(f"Initializing Bluetooth ROS2 bridge for {self.device_name}")
+        if self.jetson_mode:
+            self.get_logger().info("🤖 Jetson Nano compatibility mode enabled (BlueZ 5.53)")
+        
+        # Setup ROS2 publishers and subscribers
+        self._setup_ros2_interface()
+        
+        # Robot sensor state (collected from ROS2, sent to AR app)
+        self.robot_sensors = {
+            'car_id': self.car_id,
+            'battery_voltage': 0.0,
+            'emergency_state': False,
+            'speed': 0.0,
+            'imu': {
+                'angular_velocity': {'z': 0.0},
+                'linear_acceleration': {'x': 0.0, 'y': 0.0}
+            },
+            'timestamp': 0.0,
+            'connection_status': 'connected'
+        }
+        
+        # BLE server state
+        self.ble_server = None
+        self.ble_connected = False
+        self.command_count = 0
+        self.last_command_time = time.time()
+        
+        # Start BLE server if available
+        if BLESS_AVAILABLE:
+            self.get_logger().info("✅ bless library available - starting BLE server")
+            self._start_ble_server()
+        else:
+            self.get_logger().error("❌ bless library not available - BLE disabled")
+            self.get_logger().error("Install with: pip install bless")
+            
+        self.get_logger().info(f"🚀 Bluetooth ROS2 bridge ready for {self.device_name}")
+    
+    def _setup_ros2_interface(self):
+        """Setup ROS2 publishers and subscribers for robot communication."""
+        
+        # Publisher for robot movement commands
+        self.cmd_vel_publisher = self.create_publisher(
+            Twist,
+            'cmd_vel',  # Namespaced to /car_X/cmd_vel by launch file  
+            10
+        )
+        
+        # Subscribers for robot sensor feedback
+        self.voltage_subscriber = self.create_subscription(
+            Float32,
+            'voltage',  # Namespaced to /car_X/voltage
+            self._voltage_callback,
+            10
+        )
+        
+        self.imu_subscriber = self.create_subscription(
+            Imu, 
+            'imu/imu_raw',  # Namespaced to /car_X/imu/imu_raw
+            self._imu_callback,
+            10
+        )
+        
+        self.emergency_subscriber = self.create_subscription(
+            Bool,
+            'emergency_stop',  # Namespaced to /car_X/emergency_stop
+            self._emergency_callback,
+            10
+        )
+        
+        # Timer to update robot sensor data timestamp
+        self.sensor_timer = self.create_timer(0.1, self._update_sensor_timestamp)
+        
+        self.get_logger().info("✅ ROS2 interface configured")
+    
+    # ROS2 Callbacks - Update robot sensor state
+    def _voltage_callback(self, msg: Float32):
+        """Update battery voltage from robot."""
+        self.robot_sensors['battery_voltage'] = msg.data
+    
+    def _imu_callback(self, msg: Imu):
+        """Update IMU data for AR positioning."""
+        self.robot_sensors['imu'] = {
+            'angular_velocity': {'z': msg.angular_velocity.z},
+            'linear_acceleration': {
+                'x': msg.linear_acceleration.x,
+                'y': msg.linear_acceleration.y
+            }
+        }
+    
+    def _emergency_callback(self, msg: Bool):
+        """Update emergency stop state."""
+        self.robot_sensors['emergency_state'] = msg.data
+    
+    def _update_sensor_timestamp(self):
+        """Update sensor data timestamp for AR app."""
+        self.robot_sensors['timestamp'] = self.get_clock().now().nanoseconds / 1e9
+    
+    # AR App Command Processing
+    def _process_ar_command(self, command_str: str) -> Optional[Dict]:
+        """
+        Process incoming command from AR app.
+        
+        Supports both simple commands (from ble_server.py tests) and 
+        JSON commands (from AR app).
+        """
+        self.command_count += 1
+        self.last_command_time = time.time()
+        
+        command_str = command_str.strip()
+        self.get_logger().info(f"📱 AR command #{self.command_count}: {command_str[:100]}")
+        
+        try:
+            # Try JSON format first (AR app format)
+            if command_str.startswith('{'):
+                return self._process_json_command(command_str)
+            else:
+                # Simple command format (for testing compatibility)
+                return self._process_simple_command(command_str)
+                
+        except Exception as e:
+            self.get_logger().error(f"Command processing error: {e}")
+            return {
+                "type": "error",
+                "content": f"Command processing failed: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _process_json_command(self, json_str: str) -> Optional[Dict]:
+        """Process JSON command from AR app."""
+        try:
+            command = json.loads(json_str)
+            
+            if command.get('msg_type') != 'robot_command':
+                self.get_logger().warn(f"Unknown message type: {command.get('msg_type')}")
+                return None
+            
+            # Extract movement data
+            data = command.get('data', {})
+            movement = data.get('movement', {})
+            
+            if movement:
+                # Create and publish Twist message
+                twist_msg = Twist()
+                
+                linear = movement.get('linear', {})
+                angular = movement.get('angular', {})
+                
+                twist_msg.linear.x = float(linear.get('x', 0.0))
+                twist_msg.linear.y = float(linear.get('y', 0.0))  
+                twist_msg.linear.z = float(linear.get('z', 0.0))
+                twist_msg.angular.x = float(angular.get('x', 0.0))
+                twist_msg.angular.y = float(angular.get('y', 0.0))
+                twist_msg.angular.z = float(angular.get('z', 0.0))
+                
+                # Publish to robot
+                self.cmd_vel_publisher.publish(twist_msg)
+                self.robot_sensors['speed'] = abs(twist_msg.linear.x)  # Update current speed
+                
+                self.get_logger().debug(
+                    f"Published cmd_vel: linear=({twist_msg.linear.x:.2f}, {twist_msg.linear.y:.2f}), "
+                    f"angular={twist_msg.angular.z:.2f}"
+                )
+            
+            # Handle game effects (future enhancement)
+            game_effects = data.get('game_effects', {})
+            if game_effects:
+                self.get_logger().debug(f"Game effects: {game_effects}")
+            
+            # Fire-and-forget: No response needed for movement commands
+            return None
+            
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f"Invalid JSON from AR app: {e}")
+            return {
+                "type": "json_error",
+                "content": f"Invalid JSON: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _process_simple_command(self, command: str) -> Optional[Dict]:
+        """Process simple text commands (for testing compatibility)."""
+        command_lower = command.lower().strip()
+        
+        # Movement commands - publish to ROS2, no response
+        if command_lower.startswith(('move', 'cmd_vel')):
+            # Parse simple movement commands like "move_forward" or "cmd_vel:0.5,0.2"
+            if ':' in command_lower:
+                # Format: "cmd_vel:linear_x,angular_z"
+                try:
+                    _, params = command_lower.split(':', 1)
+                    values = [float(x) for x in params.split(',')]
+                    
+                    twist_msg = Twist()
+                    twist_msg.linear.x = values[0] if len(values) > 0 else 0.0
+                    twist_msg.angular.z = values[1] if len(values) > 1 else 0.0
+                    
+                    self.cmd_vel_publisher.publish(twist_msg)
+                    self.robot_sensors['speed'] = abs(twist_msg.linear.x)
+                    
+                    self.get_logger().debug(f"Simple cmd_vel: {twist_msg.linear.x:.2f}, {twist_msg.angular.z:.2f}")
+                    return None  # Fire-and-forget
+                    
+                except (ValueError, IndexError) as e:
+                    return {"type": "error", "content": f"Invalid cmd_vel format: {str(e)}"}
+            else:
+                # Simple directional commands
+                twist_msg = Twist()
+                if 'forward' in command_lower:
+                    twist_msg.linear.x = 0.3
+                elif 'backward' in command_lower:
+                    twist_msg.linear.x = -0.3
+                elif 'left' in command_lower:
+                    twist_msg.angular.z = 0.5
+                elif 'right' in command_lower:
+                    twist_msg.angular.z = -0.5
+                
+                self.cmd_vel_publisher.publish(twist_msg)
+                self.robot_sensors['speed'] = abs(twist_msg.linear.x)
+                return None  # Fire-and-forget
+        
+        # Status queries - return sensor data
+        elif command_lower in ('status', 'get_sensors', 'sensors'):
+            return {
+                "type": "sensor_response",
+                "content": self.robot_sensors.copy(),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Test commands - return responses (for ble_client_test.py compatibility)
+        elif command_lower == 'ping':
+            return {
+                "type": "ping_response",
+                "content": f"pong from {self.device_name}",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        elif command_lower == 'hello':
+            return {
+                "type": "greeting_response", 
+                "content": f"hello from {self.device_name}",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Emergency commands
+        elif command_lower == 'emergency_stop':
+            # Publish zero velocity
+            twist_msg = Twist()  # All zeros
+            self.cmd_vel_publisher.publish(twist_msg)
+            self.robot_sensors['speed'] = 0.0
+            
+            return {
+                "type": "emergency_response",
+                "content": "emergency_stop_executed",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Unknown command
+        else:
+            return {
+                "type": "unknown_command",
+                "content": f"Unknown command: {command}",
+                "available_commands": ["cmd_vel:x,z", "move_forward", "status", "ping", "emergency_stop"],
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    # BLE Server Setup (adapted from ble_server.py)
+    def _start_ble_server(self):
+        """Start BLE server in separate thread."""
+        self.ble_thread = threading.Thread(target=self._run_ble_server)
+        self.ble_thread.daemon = True
+        self.ble_thread.start()
+    
+    def _run_ble_server(self):
+        """Run BLE server event loop."""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self._setup_ble_server(loop))
+        except Exception as e:
+            self.get_logger().error(f"BLE server error: {e}")
+            self.ble_connected = False
+
+    async def _setup_ble_server(self, loop):
+        """Setup BLE server with characteristics (adapted from ble_server.py)."""
+        try:
+            self.get_logger().info(f"🔵 Setting up BLE server: {self.device_name}")
+            
+            # Create BLE server
+            self.ble_server = BlessServer(name=self.device_name, loop=loop)
+            
+            # Set up callbacks (must be done before adding service)
+            self.ble_server.read_request_func = self._ble_read_callback
+            self.ble_server.write_request_func = self._ble_write_callback
+            
+            # Add service
+            await self.ble_server.add_new_service(SERVICE_UUID)
+            
+            # Add command characteristic (AR app writes commands)
+            # Configure properties based on Jetson compatibility mode
+            command_properties = GATTCharacteristicProperties.write
+            if self.jetson_mode:
+                command_properties |= GATTCharacteristicProperties.write_without_response
+                self.get_logger().info("✅ Jetson mode: Added write_without_response compatibility")
+            
+            await self.ble_server.add_new_characteristic(
+                SERVICE_UUID,
+                COMMAND_CHAR_UUID,
+                command_properties,
+                None,
+                GATTAttributePermissions.writeable
+            )
+            
+            # Add sensor characteristic (AR app reads robot status)  
+            await self.ble_server.add_new_characteristic(
+                SERVICE_UUID,
+                SENSOR_CHAR_UUID,
+                GATTCharacteristicProperties.read,
+                None,
+                GATTAttributePermissions.readable
+            )
+            
+            # Start server
+            await self.ble_server.start()
+            self.ble_connected = True
+            
+            self.get_logger().info("🎉 BLE server started successfully!")
+            self.get_logger().info(f"📡 Device: {self.device_name}")
+            self.get_logger().info(f"🔵 Service: {SERVICE_UUID}")
+            self.get_logger().info(f"📝 Command: {COMMAND_CHAR_UUID} (AR app writes)")
+            self.get_logger().info(f"📊 Sensors: {SENSOR_CHAR_UUID} (AR app reads)")
+            self.get_logger().info("📱 Ready for iPhone AR app connections!")
+            
+            # Keep server running
+            while True:
+                await asyncio.sleep(1.0)
+                
+        except Exception as e:
+            self.get_logger().error(f"BLE server setup failed: {e}")
+            self.ble_connected = False
+
+    # BLE Callbacks (adapted from ble_server.py)
+    def _ble_read_callback(self, characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
+        """Handle BLE read requests from AR app."""
+        char_uuid = characteristic.uuid
+        
+        try:
+            if char_uuid == SENSOR_CHAR_UUID:
+                # AR app requesting sensor data
+                sensor_data = {
+                    "type": "robot_sensors",
+                    "content": self.robot_sensors.copy(),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                response_json = json.dumps(sensor_data, indent=2)
+                response_bytes = bytearray(response_json.encode('utf-8'))
+                
+                self.get_logger().debug(f"📤 Sensor data sent ({len(response_bytes)} bytes)")
+                return response_bytes
+                
+            else:
+                # Unknown characteristic
+                error_response = {
+                    "type": "error",
+                    "content": f"Unknown read characteristic: {char_uuid}",
+                    "timestamp": datetime.now().isoformat()
+                }
+                return bytearray(json.dumps(error_response).encode('utf-8'))
+                
+        except Exception as e:
+            self.get_logger().error(f"Read callback error: {e}")
+            error_response = {
+                "type": "error", 
+                "content": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+            return bytearray(json.dumps(error_response).encode('utf-8'))
+
+    def _ble_write_callback(self, characteristic: BlessGATTCharacteristic, value: Any, **kwargs):
+        """Handle BLE write requests from AR app."""
+        char_uuid = characteristic.uuid
+        
+        try:
+            # Decode command
+            if isinstance(value, (bytes, bytearray)):
+                command = value.decode('utf-8', errors='ignore')
+            else:
+                command = str(value)
+            
+            if char_uuid == COMMAND_CHAR_UUID:
+                # AR app sending command
+                # Process command (fire-and-forget for movement, optional response for queries)
+                response = self._process_ar_command(command)
+                
+                # Note: Since most commands are fire-and-forget, response is usually None
+                # AR app will poll sensor data separately using read operations
+                
+            else:
+                self.get_logger().warn(f"Write to unknown characteristic: {char_uuid}")
+                
+        except Exception as e:
+            self.get_logger().error(f"Write callback error: {e}")
+
+
+def main(args=None):
+    """Main entry point for Bluetooth ROS2 bridge."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Bluetooth ROS2 Bridge - AR App to Robot Communication')
+    parser.add_argument('--jetson', action='store_true',
+                       help='Enable Jetson Nano compatibility mode (BlueZ 5.53)')
+    parser.add_argument('--car-id', type=int, default=1,
+                       help='Car ID for multiplayer racing (1-4)')
+    
+    # Parse known args to allow ROS2 arguments to pass through
+    parsed_args, unknown_args = parser.parse_known_args()
+    
+    # Combine ROS2 args with our parsed args
+    ros_args = args if args is not None else []
+    ros_args.extend(unknown_args)
+    
+    # Print startup info
+    print("🚀 Starting Bluetooth ROS2 Bridge")
+    print(f"   Car ID: {parsed_args.car_id}")
+    if parsed_args.jetson:
+        print("   🤖 Jetson Nano compatibility mode enabled")
+    print()
+    
+    # Initialize ROS2 with parameter overrides
+    rclpy.init(args=ros_args)
+    
+    try:
+        # Create bridge with parameter overrides
+        bridge = BluetoothROS2Bridge()
+        
+        # Override parameters from command line args
+        bridge.set_parameters([
+            rclpy.parameter.Parameter('car_id', rclpy.Parameter.Type.INTEGER, parsed_args.car_id),
+            rclpy.parameter.Parameter('jetson_mode', rclpy.Parameter.Type.BOOL, parsed_args.jetson)
+        ])
+        
+        # Re-read parameters after override
+        bridge.car_id = bridge.get_parameter('car_id').get_parameter_value().integer_value
+        bridge.jetson_mode = bridge.get_parameter('jetson_mode').get_parameter_value().bool_value
+        
+        # Update device name if car_id changed
+        bridge.device_name = f"YahboomRacer_Car{bridge.car_id}"
+        
+        bridge.get_logger().info(f"🎯 Final configuration: Car {bridge.car_id}, Jetson mode: {bridge.jetson_mode}")
+        
+        rclpy.spin(bridge)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"Bridge initialization error: {e}")
+    finally:
+        try:
+            bridge.destroy_node()
+        except:
+            pass
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

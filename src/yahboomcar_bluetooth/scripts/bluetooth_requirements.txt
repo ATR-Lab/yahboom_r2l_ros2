@@ -10,8 +10,11 @@ bless==0.2.6
 bleak==0.19.5  
 async-timeout==4.0.3
 
-# Linux D-Bus Interface (CRITICAL for Ubuntu/Jetson)
-dbus_next>=1.2.0
+# Linux D-Bus Interface (CRITICAL for Ubuntu/Jetson)  
+# Cross-platform compatibility: Works on both Ubuntu PC and Jetson Nano
+# - Ubuntu 22.04+: Will install latest version (1.2.0+) 
+# - Jetson Nano (Ubuntu 20.04): Will install highest available (0.2.3)
+dbus_next>=0.2.3
 
 # =====================================
 # 🎯 IMPLEMENTATION NOTES
@@ -30,10 +33,33 @@ dbus_next>=1.2.0
 # Linux Dependencies:
 # - dbus_next: Required for BlueZ D-Bus communication on Ubuntu/Jetson
 # - Without dbus_next: BLE operations fail silently or with permission errors
+# - Cross-platform: >=0.2.3 requirement works on both Ubuntu PC and Jetson Nano
+#   * Ubuntu 22.04+: Installs latest (1.2.0+)
+#   * Jetson Nano: Installs available (0.2.3)
+# - Both versions work identically with our BLE server implementation
 
 # Version Notes:
 # - bless 0.2.4: Had API compatibility issues ("max_write_without_response_size" error)
 # - bless 0.2.6: FIXED characteristic creation - use this version! ⭐
+
+# =====================================
+# 🛠️ CROSS-PLATFORM INSTALLATION NOTES
+# =====================================
+
+# This requirements.txt works on both:
+# ✅ Ubuntu PC (22.04+): Gets latest packages (dbus_next 1.2.0+) 
+# ✅ Jetson Nano (20.04): Gets compatible packages (dbus_next 0.2.3)
+
+# Standard installation (recommended):
+# pip install -r bluetooth_requirements.txt
+
+# If you encounter ANY compatibility issues:
+# 1. Update pip first: python3 -m pip install --upgrade pip
+# 2. Install individually:
+#    pip3 install bless==0.2.6
+#    pip3 install bleak==0.19.5
+#    pip3 install async-timeout==4.0.3
+#    pip3 install dbus_next  # Auto-selects best available version
 
 # =====================================
 # Built-in Python Modules (No Installation Needed)
