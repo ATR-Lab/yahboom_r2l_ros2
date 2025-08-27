@@ -48,8 +48,7 @@ except ImportError:
 # Bridge Configuration (must match bluetooth_ros2_bridge.py)
 TARGET_DEVICE_PATTERN = "YahboomRacer_Car"  
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
-COMMAND_CHAR_UUID = "87654321-4321-4321-4321-cba987654321"  # Write commands
-SENSOR_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Read sensors
+STATUS_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Single characteristic for commands and sensor data
 
 
 class BridgeTestClient:
@@ -168,27 +167,21 @@ class BridgeTestClient:
                 print(f"❌ Service not found: {SERVICE_UUID}")
                 return False
             
-            # Check characteristics
-            command_char = None
-            sensor_char = None
+            # Check for single status characteristic
+            status_char = None
             
             for char in target_service.characteristics:
-                if char.uuid.lower() == COMMAND_CHAR_UUID.lower():
-                    command_char = char
-                elif char.uuid.lower() == SENSOR_CHAR_UUID.lower():
-                    sensor_char = char
+                if char.uuid.lower() == STATUS_CHAR_UUID.lower():
+                    status_char = char
+                    break
             
-            if not command_char:
-                print(f"❌ Command characteristic not found: {COMMAND_CHAR_UUID}")
-                return False
-                
-            if not sensor_char:
-                print(f"❌ Sensor characteristic not found: {SENSOR_CHAR_UUID}")
+            if not status_char:
+                print(f"❌ Status characteristic not found: {STATUS_CHAR_UUID}")
                 return False
             
-            print("✅ All characteristics found")
-            print(f"   Command: {COMMAND_CHAR_UUID} (Properties: {command_char.properties})")
-            print(f"   Sensor:  {SENSOR_CHAR_UUID} (Properties: {sensor_char.properties})")
+            print("✅ Status characteristic found")
+            print(f"   Status: {STATUS_CHAR_UUID} (Properties: {status_char.properties})")
+            print("📋 Single characteristic - simpler integration!")
             
             self.test_results["connection"] = True
             return True
@@ -218,19 +211,21 @@ class BridgeTestClient:
                 
                 # Send command
                 response_mode = not self.jetson_mode  # False for Jetson, True for others
-                await self.client.write_gatt_char(COMMAND_CHAR_UUID, command.encode('utf-8'), response=response_mode)
+                await self.client.write_gatt_char(STATUS_CHAR_UUID, command.encode('utf-8'), response=response_mode)
                 await asyncio.sleep(0.2)  # Let bridge process
                 
-                # For query commands, check if we can read sensor data
-                if command in ["ping", "hello", "status"]:
-                    sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
-                    if sensor_data:
-                        data = json.loads(sensor_data.decode('utf-8'))
-                        print(f"   ✅ Response received: {data.get('type', 'unknown')}")
+                # Read response (could be command response or sensor data)
+                response_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
+                if response_data:
+                    data = json.loads(response_data.decode('utf-8'))
+                    response_type = data.get('type', 'unknown')
+                    
+                    if command in ["ping", "hello", "status"] and response_type.endswith('_response'):
+                        print(f"   ✅ Command response received: {response_type}")
                     else:
-                        print(f"   ⚠️  No sensor data available")
+                        print(f"   ✅ Data received: {response_type} (sensor data or acknowledgment)")
                 else:
-                    print(f"   ✅ Command sent (fire-and-forget)")
+                    print(f"   ⚠️  No response received")
                 
                 self.test_results["simple_commands"] += 1
                 
@@ -284,7 +279,7 @@ class BridgeTestClient:
                 
                 json_str = json.dumps(command)
                 response_mode = not self.jetson_mode  # False for Jetson, True for others
-                await self.client.write_gatt_char(COMMAND_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
+                await self.client.write_gatt_char(STATUS_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
                 await asyncio.sleep(0.1)  # Brief delay
                 
                 print(f"   ✅ JSON command sent")
@@ -301,13 +296,14 @@ class BridgeTestClient:
         
         try:
             for i in range(5):
-                sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
+                sensor_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
                 
                 if sensor_data:
                     data = json.loads(sensor_data.decode('utf-8'))
+                    data_type = data.get('type', 'unknown')
                     content = data.get('content', {})
                     
-                    print(f"Read {i+1}: Battery={content.get('battery_voltage', 0):.1f}V, "
+                    print(f"Read {i+1}: Type={data_type}, Battery={content.get('battery_voltage', 0):.1f}V, "
                           f"Speed={content.get('speed', 0):.2f}, "
                           f"Emergency={content.get('emergency_state', False)}")
                     
@@ -349,7 +345,7 @@ class BridgeTestClient:
                 
                 json_str = json.dumps(command)
                 response_mode = not self.jetson_mode  # False for Jetson, True for others
-                await self.client.write_gatt_char(COMMAND_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
+                await self.client.write_gatt_char(STATUS_CHAR_UUID, json_str.encode('utf-8'), response=response_mode)
                 
                 # No delay between commands - test rapid-fire capability
             
@@ -360,7 +356,7 @@ class BridgeTestClient:
             
             # Read final sensor state
             await asyncio.sleep(0.5)
-            sensor_data = await self.client.read_gatt_char(SENSOR_CHAR_UUID)
+            sensor_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
             if sensor_data:
                 data = json.loads(sensor_data.decode('utf-8'))
                 final_speed = data.get('content', {}).get('speed', 0)
