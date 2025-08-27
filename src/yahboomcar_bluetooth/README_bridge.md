@@ -17,11 +17,10 @@ iPhone AR App ←→ BLE Server (bless) ←→ Bridge Node ←→ ROS2 Topics �
 ### Key Design Features
 
 1. **Fire-and-forget movement commands** - High frequency AR commands don't wait for responses
-2. **Polling-based sensor feedback** - AR app controls when to read robot status  
-3. **Dual characteristic design**:
-   - `COMMAND_CHAR`: AR app writes commands (movement, emergency, etc.)
-   - `SENSOR_CHAR`: AR app reads robot status (battery, IMU, speed, etc.)
+2. **Smart response system** - Command responses or sensor data based on context
+3. **Single characteristic design** - Simpler integration with one communication channel
 4. **Multiplayer support** - `car_id` parameter (1-4) for racing scenarios
+5. **Backward compatibility** - Works with existing BLE test clients
 
 ## Usage
 
@@ -134,8 +133,19 @@ ping              # Test connectivity
 ## BLE Characteristics
 
 - **Service UUID**: `12345678-1234-1234-1234-123456789abc`
-- **Command Char**: `87654321-4321-4321-4321-cba987654321` (AR app writes)
-- **Sensor Char**: `11111111-2222-3333-4444-555555555555` (AR app reads)
+- **Status Char**: `11111111-2222-3333-4444-555555555555` (AR app reads/writes)
+
+### Single Characteristic Communication Pattern
+
+```
+AR App ← Read  ← Status Characteristic ← Command Responses OR Sensor Data
+       → Write → Status Characteristic → Commands (JSON or simple text)
+```
+
+**Smart Response System:**
+- Write command → Next read gets command response (ping, hello, status) 
+- Write movement → Next read gets current sensor data (fire-and-forget)
+- Read without prior command → Always gets current sensor data
 
 ## Jetson Nano Compatibility
 
@@ -185,12 +195,13 @@ ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=2 jetson_mod
 |---------|----------------------------------|----------------------------------|
 | BLE Library | `bluez-peripheral` (broken) | `bless` (working) |
 | Architecture | Complex service callbacks | Simple read/write callbacks |
-| Command Flow | Response required | Fire-and-forget available |
+| Characteristic Design | Broken/Complex | Single characteristic (simple) |
+| Command Flow | Response required | Smart: responses OR fire-and-forget |
 | Testing | Not working | Comprehensive test suite |
-| Compatibility | AR app only | AR app + ble_client_test.py |
-| ROS2 Integration | Broken threading | Clean separation |
+| Compatibility | AR app only | AR app + ble_client_test.py compatible |
+| ROS2 Integration | Broken threading | Clean separation with ROS2 logging |
 | Jetson Support | None | Full BlueZ 5.53 compatibility |
-| Platform Support | Linux only | Linux + Jetson Nano |
+| Platform Support | Linux only | Linux + Jetson Nano + Ubuntu PC |
 
 ## Next Steps
 
