@@ -56,8 +56,7 @@ except ImportError:
 
 # BLE Service and Characteristic UUIDs
 SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
-COMMAND_CHAR_UUID = "87654321-4321-4321-4321-cba987654321"  # AR App → Commands
-SENSOR_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Robot → Sensor Data
+STATUS_CHAR_UUID = "11111111-2222-3333-4444-555555555555"   # Single characteristic for commands and sensor data
 
 # Configure logging for BLE operations
 logger = logging.getLogger(__name__)
@@ -114,6 +113,10 @@ class BluetoothROS2Bridge(Node):
         self.ble_connected = False
         self.command_count = 0
         self.last_command_time = time.time()
+        
+        # Pending response system for command responses
+        self.pending_response = None
+        self.start_time = time.time()
         
         # Start BLE server if available
         if BLESS_AVAILABLE:
@@ -385,28 +388,27 @@ class BluetoothROS2Bridge(Node):
             # Add service
             await self.ble_server.add_new_service(SERVICE_UUID)
             
-            # Add command characteristic (AR app writes commands)
+            # Add single status characteristic (AR app reads and writes)
             # Configure properties based on Jetson compatibility mode
-            command_properties = GATTCharacteristicProperties.write
+            char_properties = (
+                GATTCharacteristicProperties.read
+                | GATTCharacteristicProperties.write
+            )
             if self.jetson_mode:
-                command_properties |= GATTCharacteristicProperties.write_without_response
+                char_properties |= GATTCharacteristicProperties.write_without_response
                 self.get_logger().info("✅ Jetson mode: Added write_without_response compatibility")
             
-            await self.ble_server.add_new_characteristic(
-                SERVICE_UUID,
-                COMMAND_CHAR_UUID,
-                command_properties,
-                None,
-                GATTAttributePermissions.writeable
+            char_permissions = (
+                GATTAttributePermissions.readable 
+                | GATTAttributePermissions.writeable
             )
             
-            # Add sensor characteristic (AR app reads robot status)  
             await self.ble_server.add_new_characteristic(
                 SERVICE_UUID,
-                SENSOR_CHAR_UUID,
-                GATTCharacteristicProperties.read,
+                STATUS_CHAR_UUID,
+                char_properties,
                 None,
-                GATTAttributePermissions.readable
+                char_permissions
             )
             
             # Start server
@@ -416,9 +418,9 @@ class BluetoothROS2Bridge(Node):
             self.get_logger().info("🎉 BLE server started successfully!")
             self.get_logger().info(f"📡 Device: {self.device_name}")
             self.get_logger().info(f"🔵 Service: {SERVICE_UUID}")
-            self.get_logger().info(f"📝 Command: {COMMAND_CHAR_UUID} (AR app writes)")
-            self.get_logger().info(f"📊 Sensors: {SENSOR_CHAR_UUID} (AR app reads)")
-            self.get_logger().info("📱 Ready for iPhone AR app connections!")
+            self.get_logger().info(f"📱 Status: {STATUS_CHAR_UUID} (AR app reads/writes)")
+            self.get_logger().info("🤖 Ready for iPhone AR app connections!")
+            self.get_logger().info("📋 Single characteristic - simpler integration!")
             
             # Keep server running
             while True:
@@ -428,37 +430,46 @@ class BluetoothROS2Bridge(Node):
             self.get_logger().error(f"BLE server setup failed: {e}")
             self.ble_connected = False
 
-    # BLE Callbacks (adapted from ble_server.py)
+    # BLE Callbacks (single characteristic with pending response system)
     def _ble_read_callback(self, characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
-        """Handle BLE read requests from AR app."""
-        char_uuid = characteristic.uuid
+        """Handle BLE read requests from AR app - returns command responses or sensor data."""
+        self.get_logger().debug(f"📖 Read request for characteristic: {characteristic.uuid}")
         
         try:
-            if char_uuid == SENSOR_CHAR_UUID:
-                # AR app requesting sensor data
-                sensor_data = {
+            # Check if we have a pending response from a previous command
+            if self.pending_response:
+                response_data = self.pending_response
+                self.pending_response = None  # Clear after sending
+                
+                self.get_logger().info(f"📤 Sending command response: {response_data['type']}")
+            else:
+                # Default: return current robot sensor data
+                response_data = {
                     "type": "robot_sensors",
                     "content": self.robot_sensors.copy(),
+                    "server_info": {
+                        "device_name": self.device_name,
+                        "uptime_seconds": int(time.time() - self.start_time),
+                        "total_commands": self.command_count,
+                        "car_id": self.car_id
+                    },
                     "timestamp": datetime.now().isoformat()
                 }
                 
-                response_json = json.dumps(sensor_data, indent=2)
-                response_bytes = bytearray(response_json.encode('utf-8'))
-                
-                self.get_logger().debug(f"📤 Sensor data sent ({len(response_bytes)} bytes)")
-                return response_bytes
-                
-            else:
-                # Unknown characteristic
-                error_response = {
-                    "type": "error",
-                    "content": f"Unknown read characteristic: {char_uuid}",
-                    "timestamp": datetime.now().isoformat()
-                }
-                return bytearray(json.dumps(error_response).encode('utf-8'))
-                
+                self.get_logger().debug(f"📤 Sending sensor data")
+            
+            # Convert to JSON and return as bytearray
+            response_json = json.dumps(response_data, indent=2)
+            response_bytes = bytearray(response_json.encode('utf-8'))
+            
+            # Update the characteristic value
+            characteristic.value = response_bytes
+            
+            self.get_logger().debug(f"📤 Response sent ({len(response_bytes)} bytes)")
+            return response_bytes
+            
         except Exception as e:
-            self.get_logger().error(f"Read callback error: {e}")
+            self.get_logger().error(f"❌ Read request failed: {e}")
             error_response = {
                 "type": "error", 
                 "content": str(e),
@@ -468,28 +479,45 @@ class BluetoothROS2Bridge(Node):
 
     def _ble_write_callback(self, characteristic: BlessGATTCharacteristic, value: Any, **kwargs):
         """Handle BLE write requests from AR app."""
-        char_uuid = characteristic.uuid
+        self.get_logger().debug(f"✍️  Write request for characteristic: {characteristic.uuid}")
         
         try:
-            # Decode command
+            # Update the characteristic value
+            characteristic.value = value
+            
+            # Decode the incoming command
             if isinstance(value, (bytes, bytearray)):
                 command = value.decode('utf-8', errors='ignore')
             else:
                 command = str(value)
             
-            if char_uuid == COMMAND_CHAR_UUID:
-                # AR app sending command
-                # Process command (fire-and-forget for movement, optional response for queries)
-                response = self._process_ar_command(command)
-                
-                # Note: Since most commands are fire-and-forget, response is usually None
-                # AR app will poll sensor data separately using read operations
-                
+            self.command_count += 1
+            self.last_command_time = time.time()
+            
+            self.get_logger().info(f"📨 Received command #{self.command_count}: '{command[:100]}'")
+            
+            # Process command and prepare response
+            response = self._process_ar_command(command)
+            
+            # Store response for next read (or None for fire-and-forget commands)
+            self.pending_response = response
+            
+            if response:
+                self.get_logger().info(f"🔄 Command processed - Response ready: {response['type']}")
             else:
-                self.get_logger().warn(f"Write to unknown characteristic: {char_uuid}")
+                self.get_logger().debug(f"🔄 Command processed - Fire-and-forget (no response)")
                 
+            self.get_logger().debug("✅ Write request processed successfully")
+            
         except Exception as e:
-            self.get_logger().error(f"Write callback error: {e}")
+            self.get_logger().error(f"❌ Write request failed: {e}")
+            # Still queue an error response
+            self.pending_response = {
+                "type": "error",
+                "content": f"Command processing failed: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+            raise
 
 
 def main(args=None):
