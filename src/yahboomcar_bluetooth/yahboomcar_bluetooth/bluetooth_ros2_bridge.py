@@ -188,6 +188,24 @@ class BluetoothROS2Bridge(Node):
         """Update sensor data timestamp for AR app."""
         self.robot_sensors['timestamp'] = self.get_clock().now().nanoseconds / 1e9
     
+    def _create_short_sensor_response(self) -> Dict:
+        """Create shortened sensor response to fit BLE packet limits."""
+        # Short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], "id": car_id, "up": uptime}
+        return {
+            "t": "sens",
+            "d": [
+                round(self.robot_sensors['battery_voltage'], 2),
+                1 if self.robot_sensors['emergency_state'] else 0,
+                round(self.robot_sensors['speed'], 2),
+                round(self.robot_sensors['imu']['angular_velocity']['z'], 3),
+                round(self.robot_sensors['imu']['linear_acceleration']['x'], 3),
+                round(self.robot_sensors['imu']['linear_acceleration']['y'], 3)
+            ],
+            "id": self.car_id,
+            "up": int(time.time() - self.start_time),
+            "cmd": self.command_count
+        }
+    
     # AR App Command Processing
     def _process_ar_command(self, command_str: str) -> Optional[Dict]:
         """
@@ -212,11 +230,7 @@ class BluetoothROS2Bridge(Node):
                 
         except Exception as e:
             self.get_logger().error(f"Command processing error: {e}")
-            return {
-                "type": "error",
-                "content": f"Command processing failed: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "err", "msg": str(e)[:30]}
     
     def _process_json_command(self, json_str: str) -> Optional[Dict]:
         """Process JSON command from AR app."""
@@ -237,11 +251,7 @@ class BluetoothROS2Bridge(Node):
             
         except json.JSONDecodeError as e:
             self.get_logger().error(f"Invalid JSON from AR app: {e}")
-            return {
-                "type": "json_error",
-                "content": f"Invalid JSON: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "err", "msg": "bad_json"}
     
     def _process_short_movement_command(self, command: dict) -> Optional[Dict]:
         """Process shortened movement command: {"cmd": "move", "lin": [x,y,z], "ang": [x,y,z]}"""
@@ -284,11 +294,7 @@ class BluetoothROS2Bridge(Node):
             
         except (ValueError, IndexError, KeyError) as e:
             self.get_logger().error(f"Error processing short movement command: {e}")
-            return {
-                "type": "error",
-                "content": f"Invalid movement data: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "err", "msg": "bad_move"}
     
     def _process_long_movement_command(self, command: dict) -> Optional[Dict]:
         """Process original movement command: {"msg_type": "robot_command", "data": {...}}"""
@@ -330,11 +336,7 @@ class BluetoothROS2Bridge(Node):
             
         except (ValueError, KeyError) as e:
             self.get_logger().error(f"Error processing long movement command: {e}")
-            return {
-                "type": "error", 
-                "content": f"Invalid movement data: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "err", "msg": "bad_move"}
     
     def _process_simple_command(self, command: str) -> Optional[Dict]:
         """Process simple text commands (for testing compatibility)."""
@@ -360,7 +362,7 @@ class BluetoothROS2Bridge(Node):
                     return None  # Fire-and-forget
                     
                 except (ValueError, IndexError) as e:
-                    return {"type": "error", "content": f"Invalid cmd_vel format: {str(e)}"}
+                    return {"t": "err", "msg": "bad_vel"}
             else:
                 # Simple directional commands
                 twist_msg = Twist()
@@ -379,26 +381,14 @@ class BluetoothROS2Bridge(Node):
         
         # Status queries - return sensor data
         elif command_lower in ('status', 'get_sensors', 'sensors'):
-            return {
-                "type": "sensor_response",
-                "content": self.robot_sensors.copy(),
-                "timestamp": datetime.now().isoformat()
-            }
+            return self._create_short_sensor_response()
         
-        # Test commands - return responses (for ble_client_test.py compatibility)
+        # Test commands - return short responses (for ble_client_test.py compatibility)
         elif command_lower == 'ping':
-            return {
-                "type": "ping_response",
-                "content": f"pong from {self.device_name}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "ping", "msg": "pong", "id": self.car_id}
         
         elif command_lower == 'hello':
-            return {
-                "type": "greeting_response", 
-                "content": f"hello from {self.device_name}",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "hello", "msg": "hi", "id": self.car_id}
         
         # Emergency commands
         elif command_lower == 'emergency_stop':
@@ -407,20 +397,11 @@ class BluetoothROS2Bridge(Node):
             self.cmd_vel_publisher.publish(twist_msg)
             self.robot_sensors['speed'] = 0.0
             
-            return {
-                "type": "emergency_response",
-                "content": "emergency_stop_executed",
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "emg", "msg": "stopped", "id": self.car_id}
         
         # Unknown command
         else:
-            return {
-                "type": "unknown_command",
-                "content": f"Unknown command: {command}",
-                "available_commands": ["cmd_vel:x,z", "move_forward", "status", "ping", "emergency_stop"],
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"t": "err", "msg": "unknown", "cmd": command[:20]}
     
     # BLE Server Setup (adapted from ble_server.py)
     def _start_ble_server(self):
@@ -509,23 +490,12 @@ class BluetoothROS2Bridge(Node):
                 
                 self.get_logger().info(f"📤 Sending command response: {response_data['type']}")
             else:
-                # Default: return current robot sensor data
-                response_data = {
-                    "type": "robot_sensors",
-                    "content": self.robot_sensors.copy(),
-                    "server_info": {
-                        "device_name": self.device_name,
-                        "uptime_seconds": int(time.time() - self.start_time),
-                        "total_commands": self.command_count,
-                        "car_id": self.car_id
-                    },
-                    "timestamp": datetime.now().isoformat()
-                }
-                
+                # Default: return current robot sensor data in short format
+                response_data = self._create_short_sensor_response()
                 self.get_logger().debug(f"📤 Sending sensor data")
             
-            # Convert to JSON and return as bytearray
-            response_json = json.dumps(response_data, indent=2)
+            # Convert to JSON and return as bytearray (no pretty printing to save space)
+            response_json = json.dumps(response_data)
             response_bytes = bytearray(response_json.encode('utf-8'))
             
             # Update the characteristic value
@@ -536,11 +506,7 @@ class BluetoothROS2Bridge(Node):
             
         except Exception as e:
             self.get_logger().error(f"❌ Read request failed: {e}")
-            error_response = {
-                "type": "error", 
-                "content": str(e),
-                "timestamp": datetime.now().isoformat()
-            }
+            error_response = {"t": "err", "msg": str(e)[:30]}
             return bytearray(json.dumps(error_response).encode('utf-8'))
 
     def _ble_write_callback(self, characteristic: BlessGATTCharacteristic, value: Any, **kwargs):
@@ -578,11 +544,7 @@ class BluetoothROS2Bridge(Node):
         except Exception as e:
             self.get_logger().error(f"❌ Write request failed: {e}")
             # Still queue an error response
-            self.pending_response = {
-                "type": "error",
-                "content": f"Command processing failed: {str(e)}",
-                "timestamp": datetime.now().isoformat()
-            }
+            self.pending_response = {"t": "err", "msg": "proc_fail"}
             raise
 
 

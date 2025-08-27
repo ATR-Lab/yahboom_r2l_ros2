@@ -238,9 +238,9 @@ class BridgeTestClient:
                 response_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
                 if response_data:
                     data = json.loads(response_data.decode('utf-8'))
-                    response_type = data.get('type', 'unknown')
+                    response_type = data.get('type', data.get('t', 'unknown'))
                     
-                    if command in ["ping", "hello", "status"] and response_type.endswith('_response'):
+                    if command in ["ping", "hello", "status"] and (response_type.endswith('_response') or response_type in ['ping', 'hello', 'sens']):
                         print(f"   ✅ Command response received: {response_type}")
                     else:
                         print(f"   ✅ Data received: {response_type} (sensor data or acknowledgment)")
@@ -307,12 +307,22 @@ class BridgeTestClient:
                 
                 if sensor_data:
                     data = json.loads(sensor_data.decode('utf-8'))
-                    data_type = data.get('type', 'unknown')
-                    content = data.get('content', {})
+                    data_type = data.get('type', data.get('t', 'unknown'))
                     
-                    print(f"Read {i+1}: Type={data_type}, Battery={content.get('battery_voltage', 0):.1f}V, "
-                          f"Speed={content.get('speed', 0):.2f}, "
-                          f"Emergency={content.get('emergency_state', False)}")
+                    if data_type == 'sens':
+                        # New short format: {"t": "sens", "d": [bat, emg, spd, imu_z, imu_x, imu_y], ...}
+                        sensor_array = data.get('d', [0, 0, 0, 0, 0, 0])
+                        battery = sensor_array[0] if len(sensor_array) > 0 else 0
+                        emergency = bool(sensor_array[1]) if len(sensor_array) > 1 else False
+                        speed = sensor_array[2] if len(sensor_array) > 2 else 0
+                        print(f"Read {i+1}: Type={data_type}, Battery={battery:.1f}V, "
+                              f"Speed={speed:.2f}, Emergency={emergency}")
+                    else:
+                        # Old format or other data
+                        content = data.get('content', {})
+                        print(f"Read {i+1}: Type={data_type}, Battery={content.get('battery_voltage', 0):.1f}V, "
+                              f"Speed={content.get('speed', 0):.2f}, "
+                              f"Emergency={content.get('emergency_state', False)}")
                     
                     self.test_results["sensor_reads"] += 1
                 else:
@@ -362,7 +372,16 @@ class BridgeTestClient:
             sensor_data = await self.client.read_gatt_char(STATUS_CHAR_UUID)
             if sensor_data:
                 data = json.loads(sensor_data.decode('utf-8'))
-                final_speed = data.get('content', {}).get('speed', 0)
+                data_type = data.get('type', data.get('t', 'unknown'))
+                
+                if data_type == 'sens':
+                    # New short format
+                    sensor_array = data.get('d', [0, 0, 0, 0, 0, 0])
+                    final_speed = sensor_array[2] if len(sensor_array) > 2 else 0
+                else:
+                    # Old format
+                    final_speed = data.get('content', {}).get('speed', 0)
+                
                 print(f"Final robot speed: {final_speed:.2f} m/s")
             
         except Exception as e:
