@@ -30,6 +30,8 @@ sudo apt install -y \
     ros-humble-joint-state-publisher-gui
 ```
 
+**Note:** These dependencies are required for the workspace to build successfully. The `xacro` package is needed for robot description processing, while `robot-localization` and `imu-filter-madgwick` are required for sensor fusion and localization features.
+
 ### Python Dependencies
 Install required Python packages:
 ```bash
