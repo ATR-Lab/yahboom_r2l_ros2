@@ -207,7 +207,7 @@ class yahboomcar_driver(Node):
             # 小车运动控制,vel: ±1, angular: ±5
             # Trolley motion control,vel=[-1, 1], angular=[-5, 5]
             # rospy.loginfo("cmd_velx: {}, cmd_vely: {}, cmd_ang: {}".format(vx, vy, angular))
-             '''if self.nav_use_rotvel == True:
+            '''if self.nav_use_rotvel == True:
             #in navigation, we use angular info to instead steer rot
             vy = angular/1000.0/3.1416*180.0  #Radian system
             angular = 0.0
