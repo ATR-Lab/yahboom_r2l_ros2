@@ -15,12 +15,25 @@ This workspace contains the ROS2 implementation of the Yahboom R2L robot system,
 ## Prerequisites
 
 ### System Requirements
-- **Ubuntu 22.04 LTS** 
-- **ROS2 Humble** (installed and configured)
-- **Python 3.10+**
+- **Ubuntu 20.04 LTS** (for ROS2 Foxy) or **Ubuntu 22.04 LTS** (for ROS2 Humble)
+- **ROS2 Foxy** or **ROS2 Humble** (installed and configured)
+- **Python 3.8+** (Foxy) or **Python 3.10+** (Humble)
 
 ### ROS2 Dependencies
-Install the following ROS2 packages:
+
+**For ROS2 Foxy (Ubuntu 20.04):**
+```bash
+sudo apt update
+sudo apt install -y \
+    ros-foxy-xacro \
+    ros-foxy-robot-localization \
+    ros-foxy-imu-filter-madgwick \
+    ros-foxy-joint-state-publisher \
+    ros-foxy-joint-state-publisher-gui \
+    ros-foxy-tf2-geometry-msgs
+```
+
+**For ROS2 Humble (Ubuntu 22.04):**
 ```bash
 sudo apt update
 sudo apt install -y \
@@ -355,7 +368,7 @@ MasterControlWindow (QMainWindow)
 #### **Known Issues & Development Notes**
 
 - **Code Duplication**: `CarStatusWidget` and `SingleCarSection` contain ~70% duplicate code
-- **ROS2 Integration**: Multiple integration points marked with `TODO` comments for actual ROS2 subscribers
+- **ROS2 Integration**: Multiple integration points marked with `TODO` comments for actual ROS2 sser ubscribers
 - **Dynamic Configuration**: Currently hardcoded to 4 cars (needs variable car support)
 - **UI Improvements**: Better responsive layout and theme system needed
 
