@@ -57,10 +57,11 @@ def generate_launch_description():
     car_id = LaunchConfiguration('car_id')
     
     # Create namespace from car_id
-    namespace = ['/car_', car_id]
+    namespace = PathJoinSubstitution(['/car_', car_id])
 
     # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2L'))
-    robot_type_is_r2l = PythonExpression(["'", robot_type, "' == 'R2L'"])
+    # For Foxy compatibility, we'll use a simpler approach
+    robot_type_is_r2l = PythonExpression([robot_type, " == 'R2L'"])
 
     # Get package directories
     yahboomcar_description_dir = get_package_share_directory('yahboomcar_description')
@@ -84,7 +85,7 @@ def generate_launch_description():
         parameters=[{
             'robot_description': robot_description,
             'use_sim_time': False,
-            'frame_prefix': [namespace, '/']
+            'frame_prefix': PathJoinSubstitution([namespace, '/'])
         }]
     )
 
@@ -95,7 +96,7 @@ def generate_launch_description():
         name='joint_state_publisher',
         namespace=namespace,
         output='screen',
-        condition=IfCondition(PythonExpression([use_gui, " and ", robot_type_is_r2l]))
+        condition=IfCondition(PythonExpression([use_gui, " == 'true' and ", robot_type_is_r2l]))
     )
 
     # Joint state publisher (non-GUI version) - only for R2L robot type
@@ -106,7 +107,7 @@ def generate_launch_description():
         namespace=namespace,
         output='screen',
         condition=IfCondition(PythonExpression([
-            "not ", use_gui, " and ", robot_type_is_r2l
+            use_gui, " == 'false' and ", robot_type_is_r2l
         ]))
     )
 
@@ -146,8 +147,8 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(use_ekf),
         parameters=[{
-            'odom_frame': [namespace, '/odom'],
-            'base_footprint_frame': [namespace, '/base_footprint'],
+            'odom_frame': PathJoinSubstitution([namespace, '/odom']),
+            'base_footprint_frame': PathJoinSubstitution([namespace, '/base_footprint']),
             'linear_scale_x': 1.0,
             'linear_scale_y': 1.0,
             'wheelbase': 0.25,
@@ -168,8 +169,8 @@ def generate_launch_description():
         output='screen',
         condition=UnlessCondition(use_ekf),
         parameters=[{
-            'odom_frame': [namespace, '/odom'],
-            'base_footprint_frame': [namespace, '/base_footprint'],
+            'odom_frame': PathJoinSubstitution([namespace, '/odom']),
+            'base_footprint_frame': PathJoinSubstitution([namespace, '/base_footprint']),
             'linear_scale_x': 1.0,
             'linear_scale_y': 1.0,
             'wheelbase': 0.25,
@@ -190,7 +191,7 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(use_ekf),
         parameters=[{
-            'fixed_frame': [namespace, '/base_link'],
+            'fixed_frame': PathJoinSubstitution([namespace, '/base_link']),
             'use_mag': True,
             'publish_tf': False,
             'use_magnetic_field_msg': True,
@@ -217,9 +218,9 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(use_ekf),
         parameters=[robot_localization_file_path, {
-            'odom_frame': [namespace, '/odom'],
-            'world_frame': [namespace, '/odom'],
-            'base_link_frame': [namespace, '/base_footprint']
+            'odom_frame': PathJoinSubstitution([namespace, '/odom']),
+            'world_frame': PathJoinSubstitution([namespace, '/odom']),
+            'base_link_frame': PathJoinSubstitution([namespace, '/base_footprint'])
         }],
         remappings=[
             ('odometry/filtered', 'odom'),      # Publish final odometry to /car_X/odom
