@@ -28,7 +28,8 @@ sudo apt install -y \
     ros-humble-robot-localization \
     ros-humble-imu-filter-madgwick \
     ros-humble-joint-state-publisher \
-    ros-humble-joint-state-publisher-gui
+    ros-humble-joint-state-publisher-gui \
+    ros-humble-tf2-geometry-msgs
 ```
 
 **Note:** These dependencies are required for the workspace to build successfully. The `xacro` package is needed for robot description processing, while `robot-localization` and `imu-filter-madgwick` are required for sensor fusion and localization features.
@@ -86,7 +87,7 @@ ps aux | grep bluetoothd
 sudo usermod -aG bluetooth $USER
 # Log out and back in for group changes to take effect
 ```
-
+ros2 run yahboomcar_master_ui master_ui
 **⚠️ Important Notes:**
 - **Without the `-E` flag, BLE server functionality will NOT work**
 - This applies to **all Linux systems** including Jetson Nano, Raspberry Pi, etc.
