@@ -196,12 +196,49 @@ ros2 launch yahboomcar_bringup yahboomcar_sim.launch.py car_id:=3
 - ⚡ **Identical Behavior**: Same priority system and safety features as hardware mode
 - 🧪 **Perfect for Testing**: Ideal for developing multiplayer features and AR integration
 
+### ROS2 Version Compatibility
+
+**For ROS2 Foxy (Ubuntu 20.04):**
+```bash
+# Use the Foxy-compatible launch file
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=1
+```
+
+**For ROS2 Galactic and later:**
+```bash
+# Use the standard launch file
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup.launch.py car_id:=1
+```
+
+**Note:** The `bringup_foxy.launch.py` file is specifically designed for ROS2 Foxy compatibility and includes necessary workarounds for Foxy's stricter namespace validation and launch system limitations.
+
 ### Multiplayer Racing System
 For Mario Kart Live-style multiplayer racing:
 
 #### **Individual Robot Launch** (Run on each robot's computer):
 
-**Hardware Mode:**
+**Hardware Mode (ROS2 Foxy):**
+```bash
+# Robot Car 1
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=1
+
+# Robot Car 2  
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=2
+
+# Robot Car 3
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=3
+
+# Robot Car 4
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=4
+```
+
+**Hardware Mode (ROS2 Galactic+):**
 ```bash
 # Robot Car 1
 export ROBOT_TYPE=R2L
