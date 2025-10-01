@@ -9,6 +9,7 @@ This workspace contains the ROS2 implementation of the Yahboom R2L robot system,
 - **Robot description** (URDF/meshes) for visualization and simulation  
 - **Custom message definitions** for robot-specific data types
 - **Control interfaces** for joystick/keyboard teleop
+- **Master control UI** for multiplayer racing management
 - **Launch files** for system startup and testing
 
 ## Prerequisites
@@ -41,6 +42,10 @@ pip3 install pyserial
 # Bluetooth LE server for iPhone AR app communication  
 # Note: Use requirements.txt for tested versions and BlueZ compatibility
 pip3 install -r src/yahboomcar_bluetooth/scripts/bluetooth_requirements.txt
+
+# Master Control UI dependencies
+sudo apt install python3-pyqt5 python3-pyqt5.qtmultimedia
+pip3 install PyQt5 numpy
 ```
 
 ### System Dependencies for Bluetooth
@@ -105,7 +110,7 @@ src/
 ├── yahboomcar_bringup/     # Hardware drivers and system startup
 │   ├── scripts/            # Python driver nodes
 │   ├── launch/             # Launch files
-│   ├── param/              # Parameter configurations
+│   ├── param/             # Parameter configurations
 │   └── config/             # Additional configurations
 │
 ├── yahboomcar_bluetooth/   # iPhone AR app Bluetooth bridge
@@ -120,6 +125,14 @@ src/
 │   ├── meshes/             # 3D model meshes  
 │   ├── launch/             # Visualization launch files
 │   └── rviz/               # RViz configuration files
+│
+├── yahboomcar_master_ui/   # Master control interface for racing
+│   ├── yahboomcar_master_ui/ # PyQt5 UI components
+│   │   ├── car_details/    # Advanced car control dialogs
+│   │   ├── main_window.py  # Main application window
+│   │   ├── master_ui.py    # ROS2 node entry point
+│   │   └── [widgets]       # UI component modules
+│   └── [launch files]      # UI launch configurations
 │
 └── yahboomcar_msgs/        # Custom message definitions
     └── msg/                # Message type definitions
@@ -260,6 +273,93 @@ python3 test_ros2_bridge.py --jetson  # For Jetson Nano compatibility
 ros2 run yahboomcar_master_ui master_ui
 ```
 
+### Master Control UI
+
+The **Master Control Center** is a comprehensive PyQt5-based interface for managing robot car racing events, designed for Mario Kart Live-style racing competitions with multiple autonomous vehicles.
+
+#### **Key Features**
+
+- **🎛️ System Status Panel**: Network connectivity, fleet overview, uptime monitoring
+- **🚗 Robot Car Fleet**: Individual car status cards with real-time telemetry
+- **🎮 Manual Control Panel**: Physical joystick integration with car selection
+- **🏁 Game State Panel**: Race progress, leaderboard, and track conditions
+- **📊 Race Statistics**: Performance metrics and analytics
+- **📝 Real-time Event Log**: System events and user actions logging
+
+#### **Car Status Monitoring**
+
+Each robot car displays:
+- **Connection Status**: WebRTC, Bluetooth, and ROS2 connectivity indicators
+- **Control Mode**: Racing, Manual Control, or Emergency Stopped states
+- **Vital Signs**: Battery level with voltage, speed, position (x,y), and heading
+- **Action Controls**: Manual control toggle, emergency stop, reset, and diagnostics
+
+#### **Safety Features**
+
+- **Speed Limiting**: Configurable maximum speed (default 40%)
+- **Deadman Switches**: Automatic timeout protection
+- **Connection Monitoring**: Real-time connectivity status
+- **Visual State Indicators**: Color-coded status (Green/Yellow/Red)
+- **Emergency Stop**: Instant kill switches for all cars or individual vehicles
+
+#### **Running the Master UI**
+
+**Method 1: Using ROS2 (Recommended)**
+```bash
+# Source the workspace
+source install/setup.bash
+
+# Launch the master control interface
+ros2 run yahboomcar_master_ui master_ui
+```
+
+**Method 2: Direct Python Execution (Development)**
+```bash
+# Navigate to the package directory
+cd src/yahboomcar_master_ui/yahboomcar_master_ui
+
+# Run directly with Python
+python3 master_ui.py
+```
+
+#### **Prerequisites for Master UI**
+
+```bash
+# Install PyQt5 dependencies
+sudo apt install python3-pyqt5 python3-pyqt5.qtmultimedia
+pip3 install PyQt5 numpy
+```
+
+#### **Current Implementation Status**
+
+- **✅ UI Framework**: Complete PyQt5 interface with custom styling
+- **✅ Real-time Updates**: 5Hz updates (200ms intervals) for live telemetry
+- **✅ Safety Controls**: Emergency stop and manual override functionality
+- **🔄 ROS2 Integration**: Stub functions ready for topic/service implementation
+- **🔄 Data Management**: Currently uses dummy data with TODO integration points
+
+#### **Architecture**
+
+```
+MasterControlWindow (QMainWindow)
+├── SystemStatusWidget           # Network and fleet overview
+├── DualCarStatusWidget         # Two-car status cards (space efficient)
+│   └── SingleCarSection        # Individual car within dual card
+├── CarStatusWidget             # Full-featured single car display
+├── ManualControlWidget         # Joystick control interface
+├── GameStateWidget             # Race status and track conditions
+└── RosDataManager              # ROS2 integration and data management
+```
+
+#### **Known Issues & Development Notes**
+
+- **Code Duplication**: `CarStatusWidget` and `SingleCarSection` contain ~70% duplicate code
+- **ROS2 Integration**: Multiple integration points marked with `TODO` comments for actual ROS2 subscribers
+- **Dynamic Configuration**: Currently hardcoded to 4 cars (needs variable car support)
+- **UI Improvements**: Better responsive layout and theme system needed
+
+For detailed development information, see: `src/yahboomcar_master_ui/README.md`
+
 #### **Car ID System**:
 - **Valid Range**: `car_id` must be 1-4 (supports up to 4 simultaneous racers)
 - **Namespace Generation**: `car_id:=2` creates `/car_2/` namespace for all topics
@@ -325,6 +425,7 @@ The system uses the `Rosmaster_Lib` hardware abstraction layer to communicate wi
 ### ✅ Completed
 - [x] **Multiplayer racing foundation** (Phase 1 complete)
 - [x] **Bluetooth-ROS bridge** for AR app integration (Phase 2 complete)
+- [x] **Master Control UI** for racing management (Phase 2.5 complete)
 
 ### 🚧 In Progress  
 - [ ] **Game effects system** for power-ups and collisions (Phase 3)
@@ -360,6 +461,29 @@ sudo usermod -a -G dialout $USER
 **No hardware connected (testing)**
 - The driver will fail to connect to `/dev/myserial` when no robot is connected
 - This is expected behavior and indicates the software is working correctly
+
+### Master UI Issues
+
+**ModuleNotFoundError: No module named 'PyQt5'**
+```bash
+sudo apt install python3-pyqt5 python3-pyqt5.qtmultimedia
+pip3 install PyQt5
+```
+
+**Master UI won't start / Import errors**
+```bash
+# Ensure workspace is built and sourced
+colcon build --packages-select yahboomcar_master_ui
+source install/setup.bash
+
+# Run with ROS2
+ros2 run yahboomcar_master_ui master_ui
+```
+
+**UI displays but shows dummy data**
+- This is expected behavior - the UI framework is complete but ROS2 integration is still in development
+- The interface shows realistic dummy data for testing and development
+- Real ROS2 integration is marked with TODO comments in the code
 
 ### Bluetooth Issues
 
