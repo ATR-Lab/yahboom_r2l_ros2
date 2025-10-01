@@ -69,8 +69,6 @@ install(PROGRAMS
 install(DIRECTORY
   launch
   param
-  config
-  rviz
   cfg
   DESTINATION share/${PROJECT_NAME}/
 )
