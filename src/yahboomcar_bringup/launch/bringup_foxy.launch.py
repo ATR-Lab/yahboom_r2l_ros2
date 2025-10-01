@@ -61,7 +61,7 @@ def generate_launch_description():
 
     # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2L'))
     # For Foxy compatibility, we'll use a simpler approach
-    robot_type_is_r2l = PythonExpression([robot_type, " == 'R2L'"])
+    robot_type_is_r2l = PythonExpression(["'", robot_type, "' == 'R2L'"])
 
     # Get package directories
     yahboomcar_description_dir = get_package_share_directory('yahboomcar_description')
