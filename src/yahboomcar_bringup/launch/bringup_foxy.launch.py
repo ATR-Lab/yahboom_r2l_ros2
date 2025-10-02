@@ -4,7 +4,7 @@ import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, Command, PathJoinSubstitution, EnvironmentVariable, PythonExpression
+from launch.substitutions import LaunchConfiguration, Command, PathJoinSubstitution, EnvironmentVariable, PythonExpression, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
@@ -57,7 +57,7 @@ def generate_launch_description():
     car_id = LaunchConfiguration('car_id')
     
     # Create namespace from car_id (Foxy-compatible format)
-    namespace = PathJoinSubstitution(['/car', car_id])
+    namespace = [TextSubstitution(text='/car_'), car_id]
 
     # Create robot type condition (equivalent to ROS1's $(eval arg('robot_type') == 'R2L'))
     # For Foxy compatibility, we'll use a simpler approach
