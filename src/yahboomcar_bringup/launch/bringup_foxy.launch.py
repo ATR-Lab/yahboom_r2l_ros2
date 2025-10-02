@@ -96,7 +96,7 @@ def generate_launch_description():
         name='joint_state_publisher',
         namespace=namespace,
         output='screen',
-        condition=IfCondition(PythonExpression([use_gui, " == 'true' and ", robot_type_is_r2l]))
+        condition=IfCondition(PythonExpression(["'", use_gui, "' == 'true' and ", robot_type_is_r2l]))
     )
 
     # Joint state publisher (non-GUI version) - only for R2L robot type
@@ -107,7 +107,7 @@ def generate_launch_description():
         namespace=namespace,
         output='screen',
         condition=IfCondition(PythonExpression([
-            use_gui, " == 'false' and ", robot_type_is_r2l
+            "'", use_gui, "' == 'false' and ", robot_type_is_r2l
         ]))
     )
 
