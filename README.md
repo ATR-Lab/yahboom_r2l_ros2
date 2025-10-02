@@ -31,6 +31,10 @@ sudo apt install -y \
     ros-foxy-joint-state-publisher \
     ros-foxy-joint-state-publisher-gui \
     ros-foxy-tf2-geometry-msgs
+
+# ⚠️ CRITICAL: These packages are REQUIRED for bringup_foxy.launch.py
+# Without joint-state-publisher packages, you'll get:
+# PackageNotFoundError: "package 'joint_state_publisher' not found"
 ```
 
 **For ROS2 Humble (Ubuntu 22.04):**
@@ -492,6 +496,22 @@ The system uses the `Rosmaster_Lib` hardware abstraction layer to communicate wi
 
 ### Common Issues
 
+**PackageNotFoundError: "package 'joint_state_publisher' not found" (ROS2 Foxy)**
+```bash
+# This error occurs when launching bringup_foxy.launch.py without required packages
+# Install missing ROS2 packages:
+sudo apt update
+sudo apt install -y \
+    ros-foxy-joint-state-publisher \
+    ros-foxy-joint-state-publisher-gui \
+    ros-foxy-robot-localization \
+    ros-foxy-imu-filter-madgwick
+
+# Verify installation:
+ros2 pkg list | grep joint_state_publisher
+# Should show: joint_state_publisher, joint_state_publisher_gui
+```
+
 **ModuleNotFoundError: No module named 'serial'**
 ```bash
 pip3 install pyserial
@@ -758,8 +778,17 @@ This section provides specific instructions for deploying the robot racing syste
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install ROS2 Humble (if not already installed)
-# Follow: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html
+# Install ROS2 Foxy (recommended for Jetson Nano Ubuntu 20.04)
+# Follow: https://docs.ros.org/en/foxy/Installation/Ubuntu-Install-Debians.html
+
+# Install REQUIRED ROS2 packages for bringup_foxy.launch.py
+sudo apt install -y \
+    ros-foxy-xacro \
+    ros-foxy-robot-localization \
+    ros-foxy-imu-filter-madgwick \
+    ros-foxy-joint-state-publisher \
+    ros-foxy-joint-state-publisher-gui \
+    ros-foxy-tf2-geometry-msgs
 
 # Install Jetson-specific packages
 sudo apt install -y \
