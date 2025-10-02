@@ -529,6 +529,23 @@ sudo usermod -a -G dialout $USER
 # Log out and back in for changes to take effect
 ```
 
+**Serial port not found: /dev/myserial**
+```bash
+# The robot hardware library expects /dev/myserial but actual device is usually /dev/ttyUSB0
+# Create a symbolic link to map the actual device:
+sudo ln -sf /dev/ttyUSB0 /dev/myserial
+
+# Verify the link was created:
+ls -la /dev/myserial
+# Should show: /dev/myserial -> /dev/ttyUSB0
+
+# Alternative: Find the correct USB device first
+dmesg | grep tty
+ls -la /dev/tty*
+# Look for USB-to-serial devices like ttyUSB0, ttyUSB1, or ttyACM0
+# Then create the symlink: sudo ln -sf /dev/ttyUSBX /dev/myserial
+```
+
 **No hardware connected (testing)**
 - The driver will fail to connect to `/dev/myserial` when no robot is connected
 - This is expected behavior and indicates the software is working correctly
@@ -859,14 +876,27 @@ python3 ble_server.py --jetson
 
 ### Production Deployment
 ```bash
-# 1. Launch full robot system (with hardware)
-export ROBOT_TYPE=R2L
-ros2 launch yahboomcar_bringup bringup.launch.py car_id:=1
+# 1. Set up serial port mapping (REQUIRED for hardware communication)
+# Find the actual USB-to-serial device:
+dmesg | grep tty
+ls -la /dev/tty*
+# Look for devices like ttyUSB0, ttyUSB1, or ttyACM0
 
-# 2. Launch Bluetooth bridge with Jetson compatibility (separate terminal)
+# Create symbolic link (replace ttyUSB0 with your actual device):
+sudo ln -sf /dev/ttyUSB0 /dev/myserial
+
+# Verify the mapping:
+ls -la /dev/myserial
+# Should show: /dev/myserial -> /dev/ttyUSB0
+
+# 2. Launch full robot system (with hardware)
+export ROBOT_TYPE=R2L
+ros2 launch yahboomcar_bringup bringup_foxy.launch.py car_id:=1
+
+# 3. Launch Bluetooth bridge with Jetson compatibility (separate terminal)
 ros2 launch yahboomcar_bluetooth bluetooth_bridge.launch.py car_id:=1 jetson_mode:=true
 
-# 3. Test iPhone connectivity with nRF Connect or similar app
+# 4. Test iPhone connectivity with nRF Connect or similar app
 # Look for "YahboomRacer_Car1" in BLE device list
 # Should connect without "CBATTErrorDomain Code=14" timeout errors
 ```
